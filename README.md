@@ -2,13 +2,21 @@
 ### build
 Make sure that the golang development environment is installed
 ```bash
-git clone https://github.com/cdnbye/cbsignal.git
+git clone https://github.com/cdnbye/cbsignal_redis.git
 cd cbsignal
 make
 ```
-or directly use compiled linux file [cbsignal](https://github.com/cdnbye/cbsignal/releases) .
+or directly use compiled linux file [cbsignal](https://github.com/cdnbye/cbsignal_redis/releases) .
 
 ### deploy
+Make sure you have setup redis server, then edit `config.yaml`:
+```yaml
+redis:
+  host: REDIS_IP
+  port: 6379
+  dbname: 0
+  is_cluster: false
+```
 Upload binary file, admin.sh and config.yaml to server, create `cert` directory with `signaler.pem` and `signaler.key`, then start service:
 ```bash
 chmod +x admin.sh
@@ -50,9 +58,9 @@ Status: 200
 ```
 
 ### Cluster Mode
-RPC is used to communicate between all nodes. Specify master IP in `config_cluster.yaml`, then  start service:
+RPC is used to communicate between all nodes. Specify RPC port in `config.yaml`, then start service:
 ```bash
-sudo ./admin.sh start cluster config_cluster.yaml
+sudo ./admin.sh start cluster config.yaml
 ``` 
 
 ## Related projects
@@ -62,13 +70,21 @@ sudo ./admin.sh start cluster config_cluster.yaml
 #### 编译二进制文件
 请先确保已安装golang开发环境
 ```bash
-git clone https://github.com/cdnbye/cbsignal.git
+git clone https://github.com/cdnbye/cbsignal_redis.git
 cd cbsignal
 make
 ```
-或者直接使用已经编译好的linux可执行文件 [cbsignal](https://github.com/cdnbye/cbsignal/releases)
+或者直接使用已经编译好的linux可执行文件 [cbsignal](https://github.com/cdnbye/cbsignal_redis/releases)
 
 #### 部署
+首先确保内网中已经有redis服务, 编辑 `config.yaml`:
+```yaml
+redis:
+  host: REDIS_IP
+  port: 6379
+  dbname: 0
+  is_cluster: false
+```
 将编译生成的二进制文件、admin.sh和config.yaml上传至服务器，并在同级目录创建`cert`文件夹，将证书和秘钥文件分别改名为`signaler.pem`和`signaler.key`放入cert，之后启动服务：
 ```bash
 chmod +x admin.sh
@@ -111,7 +127,7 @@ Status: 200
 ```
 
 ### 集群模式
-节点之间采用RPC进行通信，首先在 `config_cluster.yaml` 中指定master节点的内网IP, 然后启动服务：
+节点之间采用RPC进行通信，首先在 `config_cluster.yaml` 中指定 RPC 端口, 然后启动服务：
 ```bash
 sudo ./admin.sh start cluster config_cluster.yaml
 ``` 

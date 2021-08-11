@@ -18,6 +18,7 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 
 	MAX_NOT_FOUND_PEERS_LIMIT = 5
+	MAX_REMOTE_PEERS_LIMIT = 5
 )
 
 type Client struct {
@@ -29,6 +30,8 @@ type Client struct {
 	Timestamp int64
 
 	NotFoundPeers     []string   // 记录没有找到的peer的队列
+
+	RemotePeers []RemotePeer
 }
 
 type SignalCloseResp struct {
@@ -41,6 +44,11 @@ type SignalCloseResp struct {
 type SignalVerResp struct {
 	Action string              `json:"action"`
 	Ver int                    `json:"ver"`
+}
+
+type RemotePeer struct {
+	Id string
+	Addr string
 }
 
 func NewPeerClient(peerId string, conn net.Conn) *Client {
@@ -120,7 +128,7 @@ func (c *Client)Close() error {
 func (c *Client)EnqueueNotFoundOrRejectPeer(id string) {
 	c.NotFoundPeers = append(c.NotFoundPeers, id)
 	if len(c.NotFoundPeers) > MAX_NOT_FOUND_PEERS_LIMIT {
-		c.NotFoundPeers = c.NotFoundPeers[1:len(c.NotFoundPeers)]
+		c.NotFoundPeers = c.NotFoundPeers[1:(MAX_NOT_FOUND_PEERS_LIMIT+1)]
 	}
 }
 
@@ -131,4 +139,20 @@ func (c *Client)HasNotFoundOrRejectPeer(id string) bool {
 		}
 	}
 	return false
+}
+
+func (c *Client)EnqueueRemotePeer(id string, addr string) {
+	c.RemotePeers = append(c.RemotePeers, RemotePeer{Id: id, Addr: addr})
+	if len(c.RemotePeers) > MAX_REMOTE_PEERS_LIMIT {
+		c.RemotePeers = c.RemotePeers[1:(MAX_REMOTE_PEERS_LIMIT+1)]
+	}
+}
+
+func (c *Client)GetRemotePeer(id string) (string, bool) {
+	for _, v := range c.RemotePeers {
+		if id == v.Id {
+			return v.Addr, true
+		}
+	}
+	return "", false
 }

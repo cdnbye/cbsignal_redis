@@ -2,6 +2,7 @@ package rpcservice
 
 import (
 	"cbsignal/rpcservice/pool"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/lexkong/log"
@@ -17,12 +18,8 @@ const (
 	PONG              = ".Pong"
 	SIGNAL_SERVICE    = "SignalService"
 	SIGNAL            = ".Signal"
-	DIAL_MAX_ATTENTS  = 2
-	ATTENTS_INTERVAL  = 2 // second
 	PING_INTERVAL     = 5
-	DIAL_TIMEOUT      = 3    // second
 	READ_TIMEOUT      = 1500 * time.Millisecond
-	PRINT_WARN_LIMIT_NANO = 100 * time.Millisecond
 	POOL_MIN_CONNS = 5
 	POOL_MAX_CONNS = 32
 )
@@ -48,6 +45,7 @@ type Ping struct {
 }
 
 type Pong struct {
+	NumClient int
 }
 
 type Node struct {
@@ -57,6 +55,7 @@ type Node struct {
 	isAlive          bool // 是否存活
 	connPool         pool.Pool
 	Released         bool
+	NumClient        int
 }
 
 func NewNode(addr string) (*Node, error) {
@@ -97,13 +96,6 @@ func NewNode(addr string) (*Node, error) {
 	return &node, nil
 }
 
-//func (s *Node)DialNode() error {
-//	s.Lock()
-//	s.isAlive = true
-//	s.Unlock()
-//	return nil
-//}
-
 func (s *Node) UpdateTs() {
 	s.ts = time.Now().Unix()
 }
@@ -120,14 +112,33 @@ func (s *Node) Ts() int64 {
 	return s.ts
 }
 
-func (s *Node) SendMsgSignal(request SignalReq, reply *RpcResp) error {
+func (s *Node) SendMsgSignal(signalResp interface{}, toPeerId string) error {
 	if !s.isAlive {
 		return errors.New(fmt.Sprintf("node %s is not alive", s.addr))
 	}
 	//log.Infof("SendMsgSignal to %s", s.addr)
 
-	return s.sendMsg(SIGNAL_SERVICE+SIGNAL, request, reply)
+	if !s.IsAlive() {
+		return errors.New(fmt.Sprintf("node %s is not alive when send signal", s.Addr()))
+	}
 
+	b, err := json.Marshal(signalResp)
+	if err != nil {
+		return err
+	}
+	req := SignalReq{
+		ToPeerId: toPeerId,
+		Data:     b,
+	}
+	var resp RpcResp
+	err = s.sendMsg(SIGNAL_SERVICE+SIGNAL, req, &resp)
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return errors.New(fmt.Sprintf("request is not success"))
+	}
+	return nil
 }
 
 func (s *Node) SendMsgPing(request Ping, reply *Pong) error {
@@ -158,17 +169,7 @@ func (s *Node) sendInternal(method string, request interface{}, reply interface{
 
 	//log.Warnf("GenericPool now conn %d idle %d", s.connPool.NumTotalConn(), s.connPool.NumIdleConn())
 
-	//go func() {
-	//	//log.Warnf("client.Call %s", method)
-	//	err := client.Call(method, args, reply)
-	//	s.connPool.Release(closer)
-	//	done <- err
-	//}()
-
 	client.Go(method, request, reply, done)
-	//s.connPool.Release(client)
-	//s.Client.Go(method, args, reply, done)
-	//return call.Error
 
 	select {
 		case <-time.After(READ_TIMEOUT):
@@ -214,6 +215,7 @@ func (s *Node) StartHeartbeat() {
 			} else {
 				s.Lock()
 				s.isAlive = true
+				s.NumClient = pong.NumClient
 				s.Unlock()
 			}
 			time.Sleep(PING_INTERVAL * time.Second)

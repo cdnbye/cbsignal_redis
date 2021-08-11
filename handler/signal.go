@@ -5,7 +5,6 @@ import (
 	"cbsignal/hub"
 	"cbsignal/redis"
 	"cbsignal/rpcservice"
-	"encoding/json"
 	"github.com/lexkong/log"
 )
 
@@ -18,28 +17,46 @@ func (s *SignalHandler)Handle() {
 	//h := hub.GetInstance()
 	//log.Infof("load client Msg %v", s.Msg)
 
-	if s.Cli.PeerId == "" {
+	cli := s.Cli
+
+	if cli.PeerId == "" {
 		log.Warnf("PeerId is not valid")
 		return
 	}
 
 	/*
-	 判断对等端是不是本地的，如果不是查询redis发送rpc
+	 判断对等端是不是本地的，如果是的话获取节点发送
+	 判断是否在RemotePeers缓存，是的话获取rpc addr发送
+	 判断是否redis有，是的话获取rpc addr发送
+	 发送peer not found
 	 */
 	toPeerId := s.Msg.ToPeerId
-	if s.Cli.HasNotFoundOrRejectPeer(toPeerId) {
+	if cli.HasNotFoundOrRejectPeer(toPeerId) {
 		return
 	}
 	signalResp := SignalResp{
 		Action: "signal",
-		FromPeerId: s.Cli.PeerId,
+		FromPeerId: cli.PeerId,
 		Data: s.Msg.Data,
 	}
 	if target, ok := hub.GetClient(toPeerId); ok {
 		//log.Infof("SendJsonToClient %s", toPeerId)
 		if err, fatal := hub.SendJsonToClient(target, signalResp); err != nil {
-			log.Warnf("%s send signal to peer %s error %s", s.Cli.PeerId, target.PeerId, err)
+			log.Warnf("%s send signal to peer %s error %s", cli.PeerId, target.PeerId, err)
 			if !fatal {
+				s.handlePeerNotFound(toPeerId)
+			}
+		}
+		return
+	}
+
+	if addr, ok := cli.GetRemotePeer(toPeerId); ok {
+		//log.Infof("signal GetRemotePeer %s addr %s", toPeerId, addr)
+		node, ok := rpcservice.GetNode(addr)
+		if ok {
+			err := node.SendMsgSignal(signalResp, toPeerId)
+			if err != nil {
+				log.Warnf("SendMsgSignal to remote failed " + err.Error())
 				s.handlePeerNotFound(toPeerId)
 			}
 		}
@@ -49,36 +66,17 @@ func (s *SignalHandler)Handle() {
 	if addr, err := redis.GetRemotePeerRpcAddr(toPeerId); err == nil {
 		node, ok := rpcservice.GetNode(addr)
 		if ok {
-			if !node.IsAlive() {
-				log.Warnf("node %s is not alive when send signal", node.Addr())
-				s.handlePeerNotFound(toPeerId)
-				return
-			}
-
-			b, err := json.Marshal(signalResp)
-			if err != nil {
-				log.Error("json.Marshal", err)
-				return
-			}
-			req := rpcservice.SignalReq{
-				ToPeerId: toPeerId,
-				Data:     b,
-			}
-			var resp rpcservice.RpcResp
-			err = node.SendMsgSignal(req, &resp)
+			err = node.SendMsgSignal(signalResp, toPeerId)
 			if err != nil {
 				log.Warnf("SendMsgSignal to remote failed " + err.Error())
 				s.handlePeerNotFound(toPeerId)
 				return
 			}
-			if !resp.Success {
-				//log.Warnf("SendMsgSignal failed reason " + resp.Reason)
-				log.Warnf(resp.Reason)
-			}
 		} else {
 			log.Warnf("node %s not found", addr)
 			s.handlePeerNotFound(toPeerId)
 		}
+		cli.EnqueueRemotePeer(toPeerId, addr)
 		return
 	} else {
 		log.Info(err.Error())

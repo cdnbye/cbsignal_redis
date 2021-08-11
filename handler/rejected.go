@@ -5,7 +5,6 @@ import (
 	"cbsignal/hub"
 	"cbsignal/redis"
 	"cbsignal/rpcservice"
-	"encoding/json"
 	"github.com/lexkong/log"
 )
 
@@ -34,28 +33,10 @@ func (s *RejectHandler)Handle() {
 	if addr, err := redis.GetRemotePeerRpcAddr(toPeerId); err == nil {
 		node, ok := rpcservice.GetNode(addr)
 		if ok {
-			if !node.IsAlive() {
-				log.Warnf("node %s is not alive when send signal", node.Addr())
-				return
-			}
-			b, err := json.Marshal(resp)
-			if err != nil {
-				log.Error("json.Marshal", err)
-				return
-			}
-			req := rpcservice.SignalReq{
-				ToPeerId: toPeerId,
-				Data:     b,
-			}
-			var resp rpcservice.RpcResp
-			err = node.SendMsgSignal(req, &resp)
+			err = node.SendMsgSignal(resp, toPeerId)
 			if err != nil {
 				log.Warnf("SendMsgSignal to remote failed " + err.Error())
 				return
-			}
-			if !resp.Success {
-				//log.Warnf("SendMsgSignal failed reason " + resp.Reason)
-				log.Warnf(resp.Reason)
 			}
 			s.Cli.EnqueueNotFoundOrRejectPeer(toPeerId)
 		} else {

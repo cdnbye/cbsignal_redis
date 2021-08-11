@@ -24,6 +24,24 @@ func GetNode(addr string) (*Node, bool) {
 	return nodeHub.Get(addr)
 }
 
+func GetTotalNumClient() int {
+	sum := 0
+	for _, node := range nodeHub.nodes {
+		sum += node.NumClient
+	}
+	return sum
+}
+
+func GetNumNode() int {
+	sum := 0
+	for _, node := range nodeHub.nodes {
+		if node.isAlive {
+			sum += 1
+		}
+	}
+	return sum
+}
+
 func (n *NodeHub) Delete(addr string) {
 	log.Warnf("NodeHub delete %s", addr)
 	n.mu.Lock()

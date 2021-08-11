@@ -19,7 +19,7 @@ rpc_port: 52019
 redis:
   host: 127.0.0.1
   port: 6379
-  dbname: 1
+  dbname: 0
   is_cluster: false
 
 ratelimit:

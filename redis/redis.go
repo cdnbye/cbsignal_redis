@@ -40,11 +40,7 @@ func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password 
 }
 
 func GetRemotePeerRpcAddr(peerId string) (string, error) {
-	//addr := RedisCli.Get(peerId).Val()
-	//if addr == "" {
-	//	return false, ""
-	//}
-	//return true, addr
+	//fmt.Println("redis GetRemotePeerRpcAddr peerId " + peerId)
 	return RedisCli.Get(peerId).Result()
 }
 

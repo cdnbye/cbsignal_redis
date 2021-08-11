@@ -1,6 +1,7 @@
 package broadcast
 
 import (
+	"cbsignal/hub"
 	"cbsignal/rpcservice"
 	"github.com/lexkong/log"
 	"net/rpc"
@@ -18,5 +19,6 @@ func RegisterBroadcastService() error {
 
 func (h *Service) Pong(request rpcservice.Ping, reply *rpcservice.Pong) error {
 	//time.Sleep(1 * time.Second)
+	reply.NumClient = hub.GetClientNum()
 	return nil
 }
