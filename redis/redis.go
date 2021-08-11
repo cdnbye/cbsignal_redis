@@ -31,9 +31,9 @@ func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password 
 			Addr:        redisAddr,
 			Password:    password,
 			DB:          db, // use default DB
-			PoolSize:    100,                          // Maximum number of socket connections.
-			PoolTimeout: time.Millisecond * 100,       // mount of time client waits for connection if all connections are busy before returning an error.
-			ReadTimeout: time.Millisecond * 100,       //
+			PoolSize:    150,                          // Maximum number of socket connections.
+			PoolTimeout: time.Millisecond * 500,       // mount of time client waits for connection if all connections are busy before returning an error.
+			ReadTimeout: time.Millisecond * 500,       //
 		})
 	}
 	return RedisCli

@@ -36,18 +36,16 @@ func GetClientNumPerMap() []int {
 
 func DoRegister(client *client.Client) {
 	log.Infof("hub DoRegister %s", client.PeerId)
-	if client.PeerId != "" {
-		/*
+	/*
 		1. 本地保存节点id
 		2. redis保存节点id和addr
-		 */
-		h.Clients.Set(client.PeerId, client)
+	*/
+	h.Clients.Set(client.PeerId, client)
+	go func() {
 		if err := redis.SetLocalPeer(client.PeerId); err != nil {
 			log.Error("SetLocalPeer", err)
 		}
-	} else {
-		panic("DoRegister")
-	}
+	}()
 }
 
 func GetClient(id string) (*client.Client, bool) {
@@ -67,11 +65,13 @@ func DoUnregister(peerId string) bool {
 		1. 本地删除节点id
 		2. redis删除节点id
 	*/
-	if err := redis.DelLocalPeer(peerId); err != nil {
-		log.Error("DelLocalPeer", err)
-	}
 	if h.Clients.Has(peerId) {
 		h.Clients.Remove(peerId)
+		go func() {
+			if err := redis.DelLocalPeer(peerId); err != nil {
+				log.Error("DelLocalPeer", err)
+			}
+		}()
 		return true
 	}
 	return false

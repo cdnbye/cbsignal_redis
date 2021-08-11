@@ -46,6 +46,7 @@ var (
 
 	selfIp string
 	selfPort string
+	selfAddr string
 
 	signalPort     string
 	signalPortTLS  string
@@ -105,7 +106,7 @@ func init()  {
 	if selfPort == "" {
 		panic("port for rpc is required")
 	}
-	selfAddr := fmt.Sprintf("%s:%s", selfIp, selfPort)
+	selfAddr = fmt.Sprintf("%s:%s", selfIp, selfPort)
 
 	// init redis client
 	isRedisCluster := viper.GetBool("redis.is_cluster")
@@ -207,7 +208,7 @@ func main() {
 		}()
 	}
 
-	rpcservice.NewNodeHub()
+	rpcservice.NewNodeHub(selfAddr)
 	// rpcservice
 	go func() {
 
