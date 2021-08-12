@@ -272,7 +272,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Upgrade connection
-	//log.Printf("UpgradeHTTP")
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)

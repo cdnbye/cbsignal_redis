@@ -34,12 +34,12 @@ func (b *Service) Signal(request rpcservice.SignalReq, reply *rpcservice.RpcResp
 		toPeerId := request.ToPeerId
 		cli, ok := hub.GetClient(request.ToPeerId)
 		if !ok {
-			log.Infof("local peer %s not found", toPeerId)
+			//log.Infof("local peer %s not found", toPeerId)
 			// 节点不存在
 			//reply.Success = false
 			//reply.Reason = fmt.Sprintf("peer %s not found", req.FromPeerId)
 		} else {
-			log.Infof("local peer %s found", toPeerId)
+			//log.Infof("local peer %s found", toPeerId)
 			//reply.Success = true
 			signalMsg := handler.SignalResp{
 				Action: req.Action,

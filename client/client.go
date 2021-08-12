@@ -10,15 +10,8 @@ import (
 )
 
 const (
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	MAX_NOT_FOUND_PEERS_LIMIT = 5
-	MAX_REMOTE_PEERS_LIMIT = 5
+	MAX_NOT_FOUND_PEERS_LIMIT = 4
+	MAX_REMOTE_PEERS_LIMIT = 4
 )
 
 type Client struct {
@@ -133,8 +126,14 @@ func (c *Client)EnqueueNotFoundOrRejectPeer(id string) {
 }
 
 func (c *Client)HasNotFoundOrRejectPeer(id string) bool {
-	for _, v := range c.NotFoundPeers {
-		if id == v {
+	//for _, v := range c.NotFoundPeers {
+	//	if id == v {
+	//		return true
+	//	}
+	//}
+	//return false
+	for i := len(c.NotFoundPeers)-1; i >= 0; i-- {
+		if id == c.NotFoundPeers[i] {
 			return true
 		}
 	}
@@ -149,9 +148,16 @@ func (c *Client)EnqueueRemotePeer(id string, addr string) {
 }
 
 func (c *Client)GetRemotePeer(id string) (string, bool) {
-	for _, v := range c.RemotePeers {
-		if id == v.Id {
-			return v.Addr, true
+	//for _, v := range c.RemotePeers {
+	//	if id == v.Id {
+	//		return v.Addr, true
+	//	}
+	//}
+	//return "", false
+	for i := len(c.RemotePeers)-1; i >= 0; i-- {
+		peer := c.RemotePeers[i]
+		if id == peer.Id {
+			return peer.Addr, true
 		}
 	}
 	return "", false

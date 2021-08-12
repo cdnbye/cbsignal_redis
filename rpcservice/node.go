@@ -113,9 +113,6 @@ func (s *Node) Ts() int64 {
 }
 
 func (s *Node) SendMsgSignal(signalResp interface{}, toPeerId string) error {
-	if !s.isAlive {
-		return errors.New(fmt.Sprintf("node %s is not alive", s.addr))
-	}
 	//log.Infof("SendMsgSignal to %s", s.addr)
 
 	if !s.IsAlive() {

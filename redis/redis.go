@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"fmt"
 	"github.com/go-redis/redis"
 	"time"
 )
@@ -40,7 +41,7 @@ func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password 
 }
 
 func GetRemotePeerRpcAddr(peerId string) (string, error) {
-	//fmt.Println("redis GetRemotePeerRpcAddr peerId " + peerId)
+	fmt.Println("redis GetRemotePeerRpcAddr peerId " + peerId)
 	return RedisCli.Get(peerId).Result()
 }
 
