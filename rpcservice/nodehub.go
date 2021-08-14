@@ -65,29 +65,25 @@ func (n *NodeHub) Add(addr string, peer *Node) {
 }
 
 func (n *NodeHub) Get(addr string) (*Node, bool) {
-	//n.mu.RLock()
 	var err error
 	node, ok := n.nodes[addr]
 	if !ok {
 		n.mu.Lock()
+		defer n.mu.Unlock()
 		node, ok = n.nodes[addr]
 		if ok {
-			n.mu.Unlock()
 			return node, ok
 		}
 		log.Infof("New Node %s", addr)
 		node, err = NewNode(addr)
 		if err != nil {
 			log.Error("NewNode", err)
-			n.mu.Unlock()
 			return nil, false
 		}
 		ok = true
 		n.Add(addr, node)
 		node.StartHeartbeat()
-		n.mu.Unlock()
 	}
-	//n.mu.RUnlock()
 	return node, ok
 }
 

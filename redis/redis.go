@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"errors"
 	"fmt"
 	"github.com/go-redis/redis"
 	"time"
@@ -13,11 +14,13 @@ type RedisClient interface {
 
 const (
 	PEER_EXPIRE_DUTATION = 10*time.Minute
+	BREAK_DURATION = 1*time.Second
 )
 
 var (
 	RedisCli RedisClient
 	_rpcAddr string
+	isAlive = true
 )
 
 func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password string, db int) RedisClient {
@@ -46,15 +49,45 @@ func GetRemotePeerRpcAddr(peerId string) (string, error) {
 }
 
 func SetLocalPeer(peerId string) error {
+	if !isAlive {
+		return errors.New("redis is not alive")
+	}
 	//fmt.Printf("SetLocalPeer peerId %s _rpcAddr %s\n", peerId, _rpcAddr)
-	return RedisCli.Set(peerId, _rpcAddr, PEER_EXPIRE_DUTATION).Err()
+	err := RedisCli.Set(peerId, _rpcAddr, PEER_EXPIRE_DUTATION).Err()
+	if err != nil {
+		takeABreak()
+	}
+	return err
 }
 
 func DelLocalPeer(peerId string) error {
-	return RedisCli.Del(peerId).Err()
+	if !isAlive {
+		return errors.New("redis is not alive")
+	}
+	err := RedisCli.Del(peerId).Err()
+	if err != nil {
+		takeABreak()
+	}
+	return err
 }
 
 func UpdateLocalPeerExpiration(peerId string) error {
 	//fmt.Printf("UpdateLocalPeerExpiration peerId %s\n", peerId)
-	return RedisCli.Expire(peerId, PEER_EXPIRE_DUTATION).Err()
+	if !isAlive {
+		return errors.New("redis is not alive")
+	}
+	err := RedisCli.Expire(peerId, PEER_EXPIRE_DUTATION).Err()
+	if err != nil {
+		takeABreak()
+	}
+	return err
+}
+
+func takeABreak()  {
+	isAlive = false
+	go func() {
+		time.Sleep(BREAK_DURATION)
+
+		isAlive = true
+	}()
 }
