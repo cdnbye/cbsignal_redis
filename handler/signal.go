@@ -39,17 +39,6 @@ func (s *SignalHandler)Handle() {
 		FromPeerId: cli.PeerId,
 		Data: s.Msg.Data,
 	}
-	if target, ok := hub.GetClient(toPeerId); ok {
-		//log.Infof("SendJsonToClient %s", toPeerId)
-		if err, fatal := hub.SendJsonToClient(target, signalResp); err != nil {
-			log.Warnf("%s send signal to peer %s error %s", cli.PeerId, target.PeerId, err)
-			if !fatal {
-				s.handlePeerNotFound(toPeerId)
-			}
-		}
-		return
-	}
-
 	if addr, ok := cli.GetRemotePeer(toPeerId); ok {
 		//log.Infof("signal GetRemotePeer %s addr %s", toPeerId, addr)
 		node, ok := rpcservice.GetNode(addr)
@@ -62,7 +51,16 @@ func (s *SignalHandler)Handle() {
 		}
 		return
 	}
-
+	if target, ok := hub.GetClient(toPeerId); ok {
+		//log.Infof("SendJsonToClient %s", toPeerId)
+		if err, fatal := hub.SendJsonToClient(target, signalResp); err != nil {
+			log.Warnf("%s send signal to peer %s error %s", cli.PeerId, target.PeerId, err)
+			if !fatal {
+				s.handlePeerNotFound(toPeerId)
+			}
+		}
+		return
+	}
 	if addr, err := redis.GetRemotePeerRpcAddr(toPeerId); err == nil {
 		node, ok := rpcservice.GetNode(addr)
 		if ok {

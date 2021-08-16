@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	MAX_NOT_FOUND_PEERS_LIMIT = 4
-	MAX_REMOTE_PEERS_LIMIT = 4
+	MAX_NOT_FOUND_PEERS_LIMIT = 3
+	MAX_REMOTE_PEERS_LIMIT = 3
 )
 
 type Client struct {
@@ -49,6 +49,8 @@ func NewPeerClient(peerId string, conn net.Conn) *Client {
 		Conn:        conn,
 		PeerId:      peerId,
 		Timestamp:   time.Now().Unix(),
+		NotFoundPeers: make([]string, 0, MAX_NOT_FOUND_PEERS_LIMIT+1),
+		RemotePeers: make([]RemotePeer, 0, MAX_REMOTE_PEERS_LIMIT+1),
 	}
 }
 

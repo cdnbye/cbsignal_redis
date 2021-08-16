@@ -2,7 +2,6 @@ package redis
 
 import (
 	"errors"
-	"fmt"
 	"github.com/go-redis/redis"
 	"time"
 )
@@ -14,7 +13,7 @@ type RedisClient interface {
 
 const (
 	PEER_EXPIRE_DUTATION = 10*time.Minute
-	BREAK_DURATION = 1*time.Second
+	BREAK_DURATION = 2*time.Second
 )
 
 var (
@@ -44,7 +43,7 @@ func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password 
 }
 
 func GetRemotePeerRpcAddr(peerId string) (string, error) {
-	fmt.Println("redis GetRemotePeerRpcAddr peerId " + peerId)
+	//fmt.Println("redis GetRemotePeerRpcAddr peerId " + peerId)
 	return RedisCli.Get(peerId).Result()
 }
 
