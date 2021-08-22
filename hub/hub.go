@@ -4,11 +4,14 @@ import (
 	"cbsignal/client"
 	"cbsignal/redis"
 	"cbsignal/util/cmap"
-	"encoding/json"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/lexkong/log"
 )
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
+	h *Hub
+)
 
-var h *Hub
 type Hub struct {
 
 	Clients cmap.ConcurrentMap
@@ -79,6 +82,7 @@ func DoUnregister(peerId string) bool {
 
 // send json object to a client with peerId
 func SendJsonToClient(target *client.Client, value interface{}) (error, bool) {
+
 	b, err := json.Marshal(value)
 	if err != nil {
 		log.Error("json.Marshal", err)

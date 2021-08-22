@@ -1,10 +1,8 @@
 package signaling
 
 import (
-	"cbsignal/handler"
 	"cbsignal/hub"
 	"cbsignal/rpcservice"
-	"encoding/json"
 	"github.com/lexkong/log"
 	"net/rpc"
 )
@@ -20,16 +18,16 @@ func RegisterSignalService() error {
 }
 
 func (b *Service) Signal(request rpcservice.SignalReq, reply *rpcservice.RpcResp) error  {
-	req := handler.SignalResp{}
-	if err := json.Unmarshal(request.Data, &req);err != nil {
-		log.Warnf("json.Unmarshal error %s", err.Error())
-		return err
-	}
+	//req := handler.SignalResp{}
+	//if err := json.Unmarshal(request.Data, &req);err != nil {
+	//	log.Warnf("json.Unmarshal error %s", err.Error())
+	//	return err
+	//}
 
 	// test
 	//time.Sleep(3*time.Second)
 
-	log.Infof("rpc receive signal from %s to %s action %s", req.FromPeerId, request.ToPeerId, req.Action)
+	//log.Infof("rpc receive signal from %s to %s action %s", req.FromPeerId, request.ToPeerId, req.Action)
 	go func() {
 		toPeerId := request.ToPeerId
 		cli, ok := hub.GetClient(request.ToPeerId)
@@ -40,15 +38,20 @@ func (b *Service) Signal(request rpcservice.SignalReq, reply *rpcservice.RpcResp
 			//reply.Reason = fmt.Sprintf("peer %s not found", req.FromPeerId)
 		} else {
 			//log.Infof("local peer %s found", toPeerId)
-			//reply.Success = true
-			signalMsg := handler.SignalResp{
-				Action: req.Action,
-				FromPeerId: req.FromPeerId,
-				Data: req.Data,
-			}
 
-			if err, _ := hub.SendJsonToClient(cli, signalMsg); err != nil {
-				log.Warnf("%s send signal to peer %s error %s", req.FromPeerId, toPeerId, err)
+			//signalMsg := handler.SignalResp{
+			//	Action: req.Action,
+			//	FromPeerId: req.FromPeerId,
+			//	Data: req.Data,
+			//	Reason: req.Reason,
+			//}
+
+			//if err, _ := hub.SendJsonToClient(cli, req); err != nil {
+			//	log.Warnf("%s send signal to peer %s error %s", req.FromPeerId, toPeerId, err)
+			//}
+
+			if err, _ := cli.SendMessage(request.Data); err != nil {
+				log.Warnf("from remote send signal to peer %s error %s", toPeerId, err)
 			}
 		}
 	}()

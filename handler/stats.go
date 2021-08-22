@@ -3,7 +3,6 @@ package handler
 import (
 	"cbsignal/hub"
 	"cbsignal/rpcservice"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"runtime"

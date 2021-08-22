@@ -2,13 +2,17 @@ package rpcservice
 
 import (
 	"cbsignal/rpcservice/pool"
-	"encoding/json"
 	"errors"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/lexkong/log"
 	"net/rpc"
 	"sync"
 	"time"
+)
+
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 const (

@@ -1,9 +1,9 @@
 package client
 
 import (
-	"encoding/json"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/lexkong/log"
 	"net"
 	"time"
@@ -12,6 +12,10 @@ import (
 const (
 	MAX_NOT_FOUND_PEERS_LIMIT = 3
 	MAX_REMOTE_PEERS_LIMIT = 3
+)
+
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type Client struct {

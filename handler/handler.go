@@ -2,7 +2,11 @@ package handler
 
 import (
 	"cbsignal/client"
-	"encoding/json"
+	jsoniter "github.com/json-iterator/go"
+)
+
+var (
+    json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 type Handler interface {

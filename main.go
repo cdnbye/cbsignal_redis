@@ -35,9 +35,9 @@ import (
 )
 
 const (
-	VERSION = "2.5.0"
-	CHECK_CLIENT_INTERVAL = 15 * 60
-	EXPIRE_LIMIT = 15 * 60
+	VERSION = "2.6.0"
+	CHECK_CLIENT_INTERVAL = 10 * 60
+	EXPIRE_LIMIT = 10 * 60
 )
 
 var (
