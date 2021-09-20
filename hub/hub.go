@@ -6,10 +6,12 @@ import (
 	"cbsignal/util/cmap"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lexkong/log"
+	"sync"
 )
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 	h *Hub
+	once sync.Once
 )
 
 type Hub struct {
@@ -19,10 +21,11 @@ type Hub struct {
 }
 
 func Init() {
-	h = &Hub{
-		Clients: cmap.New(),
-	}
-
+	once.Do(func() {
+		h = &Hub{
+			Clients: cmap.New(),
+		}
+	})
 }
 
 func GetInstance() *Hub {

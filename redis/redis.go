@@ -3,6 +3,7 @@ package redis
 import (
 	"errors"
 	"github.com/go-redis/redis"
+	"sync"
 	"time"
 )
 
@@ -20,25 +21,28 @@ var (
 	RedisCli RedisClient
 	_rpcAddr string
 	isAlive = true
+	once sync.Once
 )
 
 func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password string, db int) RedisClient {
-	_rpcAddr = rpcAddr
-	if isCluster {
-		RedisCli = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs:    []string{redisAddr},
-			Password: password,
-		})
-	} else {
-		RedisCli = redis.NewClient(&redis.Options{
-			Addr:        redisAddr,
-			Password:    password,
-			DB:          db, // use default DB
-			PoolSize:    150,                          // Maximum number of socket connections.
-			PoolTimeout: time.Millisecond * 500,       // mount of time client waits for connection if all connections are busy before returning an error.
-			ReadTimeout: time.Millisecond * 500,       //
-		})
-	}
+	once.Do(func() {
+		_rpcAddr = rpcAddr
+		if isCluster {
+			RedisCli = redis.NewClusterClient(&redis.ClusterOptions{
+				Addrs:    []string{redisAddr},
+				Password: password,
+			})
+		} else {
+			RedisCli = redis.NewClient(&redis.Options{
+				Addr:        redisAddr,
+				Password:    password,
+				DB:          db, // use default DB
+				PoolSize:    150,                          // Maximum number of socket connections.
+				PoolTimeout: time.Millisecond * 500,       // mount of time client waits for connection if all connections are busy before returning an error.
+				ReadTimeout: time.Millisecond * 500,       //
+			})
+		}
+	})
 	return RedisCli
 }
 

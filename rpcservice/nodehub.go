@@ -23,11 +23,11 @@ func NewNodeHub(selfAddr string) *NodeHub {
 }
 
 func GetNode(addr string) (*Node, bool) {
-	// 如果rpc节点是本节点
-	if addr == nodeHub.selfAddr {
-		return nil, false
-	}
 	return nodeHub.Get(addr)
+}
+
+func GetSelfAddr() string {
+	return nodeHub.selfAddr
 }
 
 func GetTotalNumClient() int {
@@ -102,4 +102,7 @@ func (n *NodeHub) Clear() {
 	//n.mu.Unlock()
 }
 
+func ClearNodeHub() {
+	nodeHub.Clear()
+}
 

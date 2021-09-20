@@ -9,7 +9,8 @@ require (
 	github.com/gorilla/websocket v1.4.1
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/lexkong/log v0.0.0-20180607165131-972f9cd951fc
+	github.com/shirou/gopsutil/v3 v3.21.8 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.1
-	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
+	golang.org/x/sys v0.0.0-20210816074244-15123e1e1f71
 )

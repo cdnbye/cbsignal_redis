@@ -110,11 +110,10 @@ func (c *Client)sendData(data []byte, binary bool) (error, bool) {
 	} else {
 		opCode = ws.OpText
 	}
-	// 本地节点
 	err := wsutil.WriteServerMessage(c.Conn, opCode, data)
 	if err != nil {
 		// handle error
-		log.Warnf("WriteServerMessage " + err.Error())
+		log.Infof("WriteServerMessage " + err.Error())
 		return err, true
 	}
 	return nil, false

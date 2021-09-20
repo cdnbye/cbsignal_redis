@@ -45,7 +45,7 @@ func (s *SignalHandler)Handle() {
 		if ok {
 			err := node.SendMsgSignal(signalResp, toPeerId)
 			if err != nil {
-				log.Warnf("SendMsgSignal to remote failed " + err.Error())
+				log.Warnf("SendMsgSignal to remote node %s failed " + err.Error(), node.Addr())
 				s.handlePeerNotFound(toPeerId)
 			}
 		}
@@ -54,7 +54,7 @@ func (s *SignalHandler)Handle() {
 	if target, ok := hub.GetClient(toPeerId); ok {
 		//log.Infof("SendJsonToClient %s", toPeerId)
 		if err, fatal := hub.SendJsonToClient(target, signalResp); err != nil {
-			log.Warnf("%s send signal to peer %s error %s", cli.PeerId, target.PeerId, err)
+			log.Infof("%s send signal to peer %s error %s", cli.PeerId, target.PeerId, err)
 			if !fatal {
 				s.handlePeerNotFound(toPeerId)
 			}
@@ -62,6 +62,11 @@ func (s *SignalHandler)Handle() {
 		return
 	}
 	if addr, err := redis.GetRemotePeerRpcAddr(toPeerId); err == nil {
+		// 如果rpc节点是本节点
+		if addr == rpcservice.GetSelfAddr() {
+			s.handlePeerNotFound(toPeerId)
+			return
+		}
 		node, ok := rpcservice.GetNode(addr)
 		if ok {
 			err = node.SendMsgSignal(signalResp, toPeerId)

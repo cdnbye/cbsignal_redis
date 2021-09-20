@@ -17,15 +17,16 @@ var (
 
 const (
 	BROADCAST_SERVICE = "BroadcastService"
-	JOIN              = ".Join"
-	LEAVE             = ".Leave"
 	PONG              = ".Pong"
 	SIGNAL_SERVICE    = "SignalService"
 	SIGNAL            = ".Signal"
+	SIGNAL_BATCH      = ".SignalBatch"
 	PING_INTERVAL     = 5
 	READ_TIMEOUT      = 1500 * time.Millisecond
 	POOL_MIN_CONNS = 5
 	POOL_MAX_CONNS = 32
+	CONSUME_INTERVAL = 15 * time.Millisecond
+	ALERT_THRESHOLD = 100
 )
 
 
@@ -45,6 +46,10 @@ type SignalReq struct {
 	Data     []byte
 }
 
+type SignalBatchReq struct {
+	Items []*SignalReq
+}
+
 type Ping struct {
 }
 
@@ -60,11 +65,13 @@ type Node struct {
 	connPool         pool.Pool
 	Released         bool
 	NumClient        int
+	pipe             chan SignalReq
 }
 
 func NewNode(addr string) (*Node, error) {
 	node := Node{
 		addr: addr,
+		pipe: make(chan SignalReq, 1000),
 		ts:   time.Now().Unix(),
 	}
 
@@ -97,6 +104,10 @@ func NewNode(addr string) (*Node, error) {
 	}
 	node.connPool = p
 	node.isAlive = true
+
+	// 定时消费batch request
+	go node.Consume()
+
 	return &node, nil
 }
 
@@ -116,6 +127,32 @@ func (s *Node) Ts() int64 {
 	return s.ts
 }
 
+//func (s *Node) SendMsgSignal(signalResp interface{}, toPeerId string) error {
+//	//log.Infof("SendMsgSignal to %s", s.addr)
+//
+//	if !s.IsAlive() {
+//		return errors.New(fmt.Sprintf("node %s is not alive when send signal", s.Addr()))
+//	}
+//
+//	b, err := json.Marshal(signalResp)
+//	if err != nil {
+//		return err
+//	}
+//	req := SignalReq{
+//		ToPeerId: toPeerId,
+//		Data:     b,
+//	}
+//	var resp RpcResp
+//	err = s.sendMsg(SIGNAL_SERVICE+SIGNAL, req, &resp)
+//	if err != nil {
+//		return err
+//	}
+//	if !resp.Success {
+//		return errors.New(fmt.Sprintf("request is not success"))
+//	}
+//	return nil
+//}
+
 func (s *Node) SendMsgSignal(signalResp interface{}, toPeerId string) error {
 	//log.Infof("SendMsgSignal to %s", s.addr)
 
@@ -131,8 +168,54 @@ func (s *Node) SendMsgSignal(signalResp interface{}, toPeerId string) error {
 		ToPeerId: toPeerId,
 		Data:     b,
 	}
+
+	s.pipe <- req
+
+	return nil
+}
+
+func (s *Node)Consume()  {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error("Consume recover", errors.New(err.(string)))
+		}
+	}()
+	var items []*SignalReq
+	//var lock sync.Mutex
+	for {
+		time.Sleep(CONSUME_INTERVAL)
+		//fmt.Printf("befor size is %d\n", len(pipe))
+		l := len(s.pipe)
+		if l > ALERT_THRESHOLD {
+			log.Warnf("pipe len is %d", l)
+		}
+		items = make([]*SignalReq, 0, l)
+		for i:=0;i<l;i++ {
+			m := <- s.pipe
+			//log.Infof("append signal from %s", m.ToPeerId)
+			items = append(items, &m)
+		}
+		//fmt.Printf("after size is %d\n", len(pipe))
+		if len(items) == 0 {
+			continue
+		}
+		//batchReq := &SignalBatchReq{Items: items}
+		//lock.Lock()
+		go func() {
+			if err := s.sendMsgSignalBatch(items); err != nil {
+				//lock.Unlock()
+				log.Error("sendMsgSignalBatch", err)
+			}
+		}()
+		//lock.Unlock()
+	}
+}
+
+func (s *Node)sendMsgSignalBatch(items []*SignalReq) error {
 	var resp RpcResp
-	err = s.sendMsg(SIGNAL_SERVICE+SIGNAL, req, &resp)
+	batchReq := &SignalBatchReq{Items:items}
+	log.Infof("send batch request len %d to %s", len(batchReq.Items), s.addr)
+	err := s.sendMsg(SIGNAL_SERVICE+SIGNAL_BATCH, batchReq, &resp)
 	if err != nil {
 		return err
 	}
@@ -209,7 +292,7 @@ func (s *Node) StartHeartbeat() {
 			ping := Ping{}
 			var pong Pong
 			if err := s.SendMsgPing(ping, &pong); err != nil {
-				log.Errorf(err, "node heartbeat")
+				log.Errorf(err, "node heartbeat %s", s.addr)
 				s.Lock()
 				s.isAlive = false
 				s.Unlock()

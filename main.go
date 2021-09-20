@@ -10,6 +10,7 @@ import (
 	"cbsignal/rpcservice/broadcast"
 	"cbsignal/rpcservice/signaling"
 	"cbsignal/util"
+	"cbsignal/util/cpu"
 	"cbsignal/util/ratelimit"
 	"crypto/hmac"
 	"crypto/md5"
@@ -23,6 +24,8 @@ import (
 	"github.com/spf13/viper"
 	"net"
 	"net/http"
+	"sync/atomic"
+
 	//_ "net/http/pprof"
 	"net/rpc"
 
@@ -35,15 +38,19 @@ import (
 )
 
 const (
-	VERSION = "2.6.0"
-	CHECK_CLIENT_INTERVAL = 10 * 60
-	EXPIRE_LIMIT = 10 * 60
+	VERSION = "2.7.0"
+	CHECK_CLIENT_INTERVAL = 15 * 60
+	EXPIRE_LIMIT = 12 * 60
+	CPU_Threshold = 800
 )
 
 var (
 	cfg = pflag.StringP("config", "c", "", "Config file path.")
 	newline = []byte{'\n'}
 	space   = []byte{' '}
+
+	gCPU  int64
+	decay = 0.95
 
 	selfIp string
 	selfPort string
@@ -155,6 +162,9 @@ func init()  {
 			log.Warnf("check client finished, closed %d clients", count)
 		}
 	}()
+
+	// 监控cpu使用率
+	go cpuproc()
 }
 
 func main() {
@@ -256,10 +266,21 @@ func main() {
 	<-intrChan
 
 	log.Info("Shutting down server...")
+
+	// do cleanup
 	redisCli.Close()
+	rpcservice.ClearNodeHub()
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
+
+	// cpu usage
+	cpuUsage := atomic.LoadInt64(&gCPU)
+	if cpuUsage > CPU_Threshold {
+		log.Warnf("reach cpu threshold %d", cpuUsage)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 
 	// rate limit
 	if limitEnabled {
@@ -267,9 +288,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Warnf("reach rate limit %d", limiter.Capacity())
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
-		} else {
-			log.Infof("rate limit remaining %d capacity %d", limiter.Available(), limiter.Capacity())
 		}
+		//else {
+		//	log.Infof("rate limit remaining %d capacity %d", limiter.Available(), limiter.Capacity())
+		//}
 	}
 
 	// Upgrade connection
@@ -387,6 +409,25 @@ func setupConfigFromViper()  {
 	securityEnabled = viper.GetBool("security.enable")
 	maxTimeStampAge = viper.GetInt64("security.maxTimeStampAge")
 	securityToken = viper.GetString("security.token")
+}
+
+func cpuproc() {
+	ticker := time.NewTicker(time.Millisecond * 500) // same to cpu sample rate
+	defer func() {
+		ticker.Stop()
+		if err := recover(); err != nil {
+			go cpuproc()
+		}
+	}()
+
+	// EMA algorithm: https://blog.csdn.net/m0_38106113/article/details/81542863
+	for range ticker.C {
+		stat := &cpu.Stat{}
+		cpu.ReadStat(stat)
+		prevCPU := atomic.LoadInt64(&gCPU)
+		curCPU := int64(float64(prevCPU)*decay + float64(stat.Usage)*(1.0-decay))
+		atomic.StoreInt64(&gCPU, curCPU)
+	}
 }
 
 

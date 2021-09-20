@@ -59,3 +59,25 @@ func (b *Service) Signal(request rpcservice.SignalReq, reply *rpcservice.RpcResp
 	reply.Success = true
 	return nil
 }
+
+func (b *Service) SignalBatch(request rpcservice.SignalBatchReq, reply *rpcservice.RpcResp) error {
+	log.Infof("received %d signals", len(request.Items))
+	go func() {
+		for _, item := range request.Items {
+			toPeerId := item.ToPeerId
+			cli, ok := hub.GetClient(item.ToPeerId)
+			if ok {
+				log.Infof("batch local peer %s found", toPeerId)
+				if err, _ := cli.SendMessage(item.Data); err != nil {
+					log.Warnf("from remote send signal to peer %s error %s", toPeerId, err)
+					if ok := hub.DoUnregister(cli.PeerId); ok {
+						cli.Close()
+					}
+				}
+			}
+		}
+	}()
+
+	reply.Success = true
+	return nil
+}

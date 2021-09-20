@@ -31,6 +31,10 @@ func (s *RejectHandler)Handle() {
 		return
 	}
 	if addr, err := redis.GetRemotePeerRpcAddr(toPeerId); err == nil {
+		// 如果rpc节点是本节点
+		if addr == rpcservice.GetSelfAddr() {
+			return
+		}
 		node, ok := rpcservice.GetNode(addr)
 		if ok {
 			err = node.SendMsgSignal(resp, toPeerId)
