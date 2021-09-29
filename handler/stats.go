@@ -29,10 +29,7 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 		//fmt.Printf("URL: %s\n", r.URL.String())
 		info.NumGoroutine = runtime.NumGoroutine()
 		info.NumPerMap = hub.GetClientNumPerMap()
-		info.CurrentConnections = 0
-		for _, count := range info.NumPerMap {
-			info.CurrentConnections += count
-		}
+		info.CurrentConnections = hub.GetClientNum()
 		info.TotalConnections = info.CurrentConnections + rpcservice.GetTotalNumClient()
 		info.NumInstance = rpcservice.GetNumNode() + 1
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -64,7 +61,13 @@ func VersionHandler(version string) http.HandlerFunc {
 
 func CountHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		//fmt.Printf("URL: %s\n", r.URL.String())
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientNum())))
+	}
+}
+
+func TotalCountHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientNum() + rpcservice.GetTotalNumClient())))
 	}

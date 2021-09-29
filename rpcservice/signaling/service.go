@@ -65,7 +65,7 @@ func (b *Service) SignalBatch(request rpcservice.SignalBatchReq, reply *rpcservi
 	go func() {
 		for _, item := range request.Items {
 			toPeerId := item.ToPeerId
-			cli, ok := hub.GetClient(item.ToPeerId)
+			cli, ok := hub.GetClient(toPeerId)
 			if ok {
 				log.Infof("batch local peer %s found", toPeerId)
 				if err, _ := cli.SendMessage(item.Data); err != nil {

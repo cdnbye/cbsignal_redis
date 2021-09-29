@@ -34,7 +34,7 @@ func (s *SignalHandler)Handle() {
 	if cli.HasNotFoundOrRejectPeer(toPeerId) {
 		return
 	}
-	signalResp := SignalResp{
+	signalResp := rpcservice.SignalResp{
 		Action: "signal",
 		FromPeerId: cli.PeerId,
 		Data: s.Msg.Data,
@@ -43,7 +43,7 @@ func (s *SignalHandler)Handle() {
 		//log.Infof("signal GetRemotePeer %s addr %s", toPeerId, addr)
 		node, ok := rpcservice.GetNode(addr)
 		if ok {
-			err := node.SendMsgSignal(signalResp, toPeerId)
+			err := node.SendMsgSignal(&signalResp, toPeerId)
 			if err != nil {
 				log.Warnf("SendMsgSignal to remote node %s failed " + err.Error(), node.Addr())
 				s.handlePeerNotFound(toPeerId)
@@ -69,7 +69,7 @@ func (s *SignalHandler)Handle() {
 		}
 		node, ok := rpcservice.GetNode(addr)
 		if ok {
-			err = node.SendMsgSignal(signalResp, toPeerId)
+			err = node.SendMsgSignal(&signalResp, toPeerId)
 			if err != nil {
 				log.Warnf("SendMsgSignal to remote failed " + err.Error())
 				s.handlePeerNotFound(toPeerId)
@@ -94,7 +94,7 @@ func (s *SignalHandler)handlePeerNotFound(toPeerId string)  {
 	// 发送一次后，同一peerId下次不再发送，节省sysCall
 	if !s.Cli.HasNotFoundOrRejectPeer(toPeerId) {
 		s.Cli.EnqueueNotFoundOrRejectPeer(toPeerId)
-		resp := SignalResp{
+		resp := rpcservice.SignalResp{
 			Action: "signal",
 			FromPeerId: s.Msg.ToPeerId,
 		}

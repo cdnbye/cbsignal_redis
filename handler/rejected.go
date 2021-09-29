@@ -20,7 +20,7 @@ func (s *RejectHandler)Handle() {
 	if s.Cli.HasNotFoundOrRejectPeer(toPeerId) {
 		return
 	}
-	resp := SignalResp{
+	resp := rpcservice.SignalResp{
 		Action: "reject",
 		FromPeerId: s.Cli.PeerId,
 		Reason: s.Msg.Reason,
@@ -37,7 +37,7 @@ func (s *RejectHandler)Handle() {
 		}
 		node, ok := rpcservice.GetNode(addr)
 		if ok {
-			err = node.SendMsgSignal(resp, toPeerId)
+			err = node.SendMsgSignal(&resp, toPeerId)
 			if err != nil {
 				log.Warnf("SendMsgSignal to remote failed " + err.Error())
 				return

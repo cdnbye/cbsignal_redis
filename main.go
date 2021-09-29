@@ -252,6 +252,7 @@ func main() {
 	http.HandleFunc("/wss", wsHandler)
 	http.HandleFunc("/", wsHandler)
 	http.HandleFunc("/count", handler.CountHandler())
+	http.HandleFunc("/total_count", handler.TotalCountHandler())
 	http.HandleFunc("/version", handler.VersionHandler(VERSION))
 
 	info := handler.SignalInfo{

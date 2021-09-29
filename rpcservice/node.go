@@ -25,7 +25,7 @@ const (
 	READ_TIMEOUT      = 1500 * time.Millisecond
 	POOL_MIN_CONNS = 5
 	POOL_MAX_CONNS = 32
-	CONSUME_INTERVAL = 15 * time.Millisecond
+	CONSUME_INTERVAL = 20 * time.Millisecond
 	ALERT_THRESHOLD = 100
 )
 
@@ -65,13 +65,20 @@ type Node struct {
 	connPool         pool.Pool
 	Released         bool
 	NumClient        int
-	pipe             chan SignalReq
+	pipe             chan *SignalReq
+}
+
+type SignalResp struct {
+	Action string              `json:"action"`
+	FromPeerId string          `json:"from_peer_id,omitempty"`
+	Data interface{}           `json:"data,omitempty"`
+	Reason string              `json:"reason,omitempty"`
 }
 
 func NewNode(addr string) (*Node, error) {
 	node := Node{
 		addr: addr,
-		pipe: make(chan SignalReq, 1000),
+		pipe: make(chan *SignalReq, 1000),
 		ts:   time.Now().Unix(),
 	}
 
@@ -153,7 +160,7 @@ func (s *Node) Ts() int64 {
 //	return nil
 //}
 
-func (s *Node) SendMsgSignal(signalResp interface{}, toPeerId string) error {
+func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 	//log.Infof("SendMsgSignal to %s", s.addr)
 
 	if !s.IsAlive() {
@@ -169,22 +176,21 @@ func (s *Node) SendMsgSignal(signalResp interface{}, toPeerId string) error {
 		Data:     b,
 	}
 
-	s.pipe <- req
+	s.pipe <- &req
 
 	return nil
 }
 
 func (s *Node)Consume()  {
+	ticker := time.NewTicker(CONSUME_INTERVAL)
 	defer func() {
+		ticker.Stop()
 		if err := recover(); err != nil {
-			log.Error("Consume recover", errors.New(err.(string)))
+			go s.Consume()
 		}
 	}()
 	var items []*SignalReq
-	//var lock sync.Mutex
-	for {
-		time.Sleep(CONSUME_INTERVAL)
-		//fmt.Printf("befor size is %d\n", len(pipe))
+	for range ticker.C {
 		l := len(s.pipe)
 		if l > ALERT_THRESHOLD {
 			log.Warnf("pipe len is %d", l)
@@ -193,21 +199,18 @@ func (s *Node)Consume()  {
 		for i:=0;i<l;i++ {
 			m := <- s.pipe
 			//log.Infof("append signal from %s", m.ToPeerId)
-			items = append(items, &m)
+			items = append(items, m)
 		}
 		//fmt.Printf("after size is %d\n", len(pipe))
 		if len(items) == 0 {
 			continue
 		}
-		//batchReq := &SignalBatchReq{Items: items}
-		//lock.Lock()
 		go func() {
 			if err := s.sendMsgSignalBatch(items); err != nil {
 				//lock.Unlock()
 				log.Error("sendMsgSignalBatch", err)
 			}
 		}()
-		//lock.Unlock()
 	}
 }
 

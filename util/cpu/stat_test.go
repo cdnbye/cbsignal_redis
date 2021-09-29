@@ -68,3 +68,18 @@ func Cpuproc() {
 		atomic.StoreInt64(&gCPU, curCPU)
 	}
 }
+
+func TestTicker(t *testing.T)  {
+	ticker := time.NewTicker(time.Millisecond * 500)
+	defer func() {
+		ticker.Stop()
+		if err := recover(); err != nil {
+			go Cpuproc()
+		}
+	}()
+
+	for range ticker.C {
+		t.Log("tick")
+		//time.Sleep(2*time.Second)
+	}
+}
