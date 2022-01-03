@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	VERSION                   = "2.7.0"
+	VERSION                   = "2.8.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	EXPIRE_LIMIT              = 12 * 60
 	REJECT_JOIN_CPU_Threshold = 800
