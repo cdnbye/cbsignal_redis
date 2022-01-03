@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"sync"
@@ -138,13 +139,13 @@ func NewBucketWithQuantumAndClock(fillInterval time.Duration, capacity, quantum 
 		clock = realClock{}
 	}
 	if fillInterval <= 0 {
-		panic("token bucket fill interval is not > 0")
+		fmt.Println("token bucket fill interval is not > 0")
 	}
 	if capacity <= 0 {
-		panic("token bucket capacity is not > 0")
+		fmt.Println("token bucket capacity is not > 0")
 	}
 	if quantum <= 0 {
-		panic("token bucket quantum is not > 0")
+		fmt.Println("token bucket quantum is not > 0")
 	}
 	return &Bucket{
 		clock:           clock,

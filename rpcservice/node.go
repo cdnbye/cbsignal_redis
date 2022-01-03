@@ -47,7 +47,7 @@ type SignalReq struct {
 }
 
 type SignalBatchReq struct {
-	Items []*SignalReq
+	Items []SignalReq
 }
 
 type Ping struct {
@@ -65,7 +65,7 @@ type Node struct {
 	connPool         pool.Pool
 	Released         bool
 	NumClient        int
-	pipe             chan *SignalReq
+	pipe             chan SignalReq
 }
 
 type SignalResp struct {
@@ -78,7 +78,7 @@ type SignalResp struct {
 func NewNode(addr string) (*Node, error) {
 	node := Node{
 		addr: addr,
-		pipe: make(chan *SignalReq, 1000),
+		pipe: make(chan SignalReq, 1000),
 		ts:   time.Now().Unix(),
 	}
 
@@ -176,7 +176,7 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 		Data:     b,
 	}
 
-	s.pipe <- &req
+	s.pipe <- req
 
 	return nil
 }
@@ -189,13 +189,13 @@ func (s *Node)Consume()  {
 			go s.Consume()
 		}
 	}()
-	var items []*SignalReq
+	var items []SignalReq
 	for range ticker.C {
 		l := len(s.pipe)
 		if l > ALERT_THRESHOLD {
 			log.Warnf("pipe len is %d", l)
 		}
-		items = make([]*SignalReq, 0, l)
+		items = make([]SignalReq, 0, l)
 		for i:=0;i<l;i++ {
 			m := <- s.pipe
 			//log.Infof("append signal from %s", m.ToPeerId)
@@ -214,7 +214,7 @@ func (s *Node)Consume()  {
 	}
 }
 
-func (s *Node)sendMsgSignalBatch(items []*SignalReq) error {
+func (s *Node)sendMsgSignalBatch(items []SignalReq) error {
 	var resp RpcResp
 	batchReq := &SignalBatchReq{Items:items}
 	log.Infof("send batch request len %d to %s", len(batchReq.Items), s.addr)
@@ -266,7 +266,7 @@ func (s *Node) sendInternal(method string, request interface{}, reply interface{
 		case call := <-done:
 			//.Add(timeout).Before(time.Now())
 			//elapsed := time.Since(start)
-			//log.Warnf("6666 %d %d", elapsed.Nanoseconds(), PRINT_WARN_LIMIT_NANO)
+			//log.Warnf("%d %d", elapsed.Nanoseconds(), PRINT_WARN_LIMIT_NANO)
 			//if start.Add(PRINT_WARN_LIMIT_NANO).Before(time.Now()) {
 			//	log.Warnf("rpc send %s cost %v", method, elapsed)
 			//}

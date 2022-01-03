@@ -2,10 +2,14 @@ package handler
 
 import (
 	"cbsignal/hub"
+	"cbsignal/redis"
 	"cbsignal/rpcservice"
+	"cbsignal/util/cpu"
 	"fmt"
 	"net/http"
 	"runtime"
+	"sync/atomic"
+	"time"
 )
 
 type SignalInfo struct {
@@ -17,6 +21,8 @@ type SignalInfo struct {
 	SecurityEnabled    bool `json:"security_enabled,omitempty"`
 	NumGoroutine       int  `json:"num_goroutine"`
 	NumPerMap          []int `json:"num_per_map"`
+	CpuUsage           int64  `json:"cpu_usage"`
+	RedisConnected     bool  `json:"redis_connected"`
 }
 
 type Resp struct {
@@ -24,14 +30,31 @@ type Resp struct {
 	Data *SignalInfo `json:"data"`
 }
 
+var (
+	G_CPU  int64
+	decay = 0.7
+)
+
+func init() {
+	// 监控cpu使用率
+	go cpuproc()
+}
+
 func StatsHandler(info SignalInfo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		//fmt.Printf("URL: %s\n", r.URL.String())
 		info.NumGoroutine = runtime.NumGoroutine()
 		info.NumPerMap = hub.GetClientNumPerMap()
-		info.CurrentConnections = hub.GetClientNum()
+		if redis.IsAlive {
+			info.RedisConnected = true
+			info.CurrentConnections = hub.GetClientNum()
+		} else {
+			info.RedisConnected = false
+			info.CurrentConnections = 0
+		}
 		info.TotalConnections = info.CurrentConnections + rpcservice.GetTotalNumClient()
 		info.NumInstance = rpcservice.GetNumNode() + 1
+		info.CpuUsage = atomic.LoadInt64(&G_CPU)/10
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		resp := Resp{
 			Ret:  0,
@@ -62,7 +85,12 @@ func VersionHandler(version string) http.HandlerFunc {
 func CountHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientNum())))
+		if redis.IsAlive {
+			w.Write([]byte(fmt.Sprintf("%d", hub.GetClientNum())))
+		} else {
+			w.Write([]byte(fmt.Sprintf("0")))
+		}
+
 	}
 }
 
@@ -73,3 +101,22 @@ func TotalCountHandler() http.HandlerFunc {
 	}
 }
 
+func cpuproc() {
+	ticker := time.NewTicker(time.Millisecond * 500) // same to cpu sample rate
+	defer func() {
+		ticker.Stop()
+		if err := recover(); err != nil {
+			go cpuproc()
+		}
+	}()
+
+	// EMA algorithm: https://blog.csdn.net/m0_38106113/article/details/81542863
+	for range ticker.C {
+		stat := &cpu.Stat{}
+		cpu.ReadStat(stat)
+		prevCPU := atomic.LoadInt64(&G_CPU)
+		curCPU := int64(float64(prevCPU)*decay + float64(stat.Usage)*(1.0-decay))
+		atomic.StoreInt64(&G_CPU, curCPU)
+		//log.Warnf("gCPU %d", gCPU)
+	}
+}

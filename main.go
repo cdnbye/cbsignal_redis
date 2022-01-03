@@ -10,7 +10,6 @@ import (
 	"cbsignal/rpcservice/broadcast"
 	"cbsignal/rpcservice/signaling"
 	"cbsignal/util"
-	"cbsignal/util/cpu"
 	"cbsignal/util/ratelimit"
 	"crypto/hmac"
 	"crypto/md5"
@@ -38,19 +37,17 @@ import (
 )
 
 const (
-	VERSION = "2.7.0"
-	CHECK_CLIENT_INTERVAL = 15 * 60
-	EXPIRE_LIMIT = 12 * 60
-	CPU_Threshold = 800
+	VERSION                   = "2.7.0"
+	CHECK_CLIENT_INTERVAL     = 15 * 60
+	EXPIRE_LIMIT              = 12 * 60
+	REJECT_JOIN_CPU_Threshold = 800
+	REJECT_MSG_CPU_Threshold  = 900
 )
 
 var (
 	cfg = pflag.StringP("config", "c", "", "Config file path.")
 	newline = []byte{'\n'}
 	space   = []byte{' '}
-
-	gCPU  int64
-	decay = 0.95
 
 	selfIp string
 	selfPort string
@@ -91,7 +88,7 @@ func init()  {
 	replacer := strings.NewReplacer(".", "_")
 	viper.SetEnvKeyReplacer(replacer)
 	if err := viper.ReadInConfig(); err != nil { // viper解析配置文件
-		log.Fatal("Initialize viper", err)
+		panic(err)
 	}
 
 	// Initialize logger
@@ -163,8 +160,6 @@ func init()  {
 		}
 	}()
 
-	// 监控cpu使用率
-	go cpuproc()
 }
 
 func main() {
@@ -276,9 +271,9 @@ func main() {
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// cpu usage
-	cpuUsage := atomic.LoadInt64(&gCPU)
-	if cpuUsage > CPU_Threshold {
-		log.Warnf("reach cpu threshold %d", cpuUsage)
+	cpuUsage := atomic.LoadInt64(&handler.G_CPU)
+	if cpuUsage > REJECT_JOIN_CPU_Threshold {
+		log.Warnf("peer join reach cpu %d", cpuUsage)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
@@ -374,6 +369,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				log.Infof("read message error: %v", err)
 				break
 			}
+			cpuUsage := atomic.LoadInt64(&handler.G_CPU)
 			for _, m := range msg {
 				// ping
 				if m.OpCode.IsControl() {
@@ -385,12 +381,19 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					}
 					continue
 				}
+
+				// 限流
+				if cpuUsage > REJECT_MSG_CPU_Threshold {
+					log.Warnf("handle msg reach cpu %d", cpuUsage)
+					break
+				}
+
 				data := bytes.TrimSpace(bytes.Replace(m.Payload, newline, space, -1))
 				hdr, err := handler.NewHandler(data, c)
 				if err != nil {
 					// 心跳包
-					c.UpdateTs()
-					log.Infof("NewHandler " + err.Error())
+					//c.UpdateTs()
+					log.Error("NewHandler", err)
 				} else {
 					hdr.Handle()
 				}
@@ -410,25 +413,6 @@ func setupConfigFromViper()  {
 	securityEnabled = viper.GetBool("security.enable")
 	maxTimeStampAge = viper.GetInt64("security.maxTimeStampAge")
 	securityToken = viper.GetString("security.token")
-}
-
-func cpuproc() {
-	ticker := time.NewTicker(time.Millisecond * 500) // same to cpu sample rate
-	defer func() {
-		ticker.Stop()
-		if err := recover(); err != nil {
-			go cpuproc()
-		}
-	}()
-
-	// EMA algorithm: https://blog.csdn.net/m0_38106113/article/details/81542863
-	for range ticker.C {
-		stat := &cpu.Stat{}
-		cpu.ReadStat(stat)
-		prevCPU := atomic.LoadInt64(&gCPU)
-		curCPU := int64(float64(prevCPU)*decay + float64(stat.Usage)*(1.0-decay))
-		atomic.StoreInt64(&gCPU, curCPU)
-	}
 }
 
 

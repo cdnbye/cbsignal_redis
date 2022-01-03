@@ -20,8 +20,8 @@ const (
 var (
 	RedisCli RedisClient
 	_rpcAddr string
-	isAlive = true
-	once sync.Once
+	IsAlive  = true
+	once     sync.Once
 )
 
 func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password string, db int) RedisClient {
@@ -52,7 +52,7 @@ func GetRemotePeerRpcAddr(peerId string) (string, error) {
 }
 
 func SetLocalPeer(peerId string) error {
-	if !isAlive {
+	if !IsAlive {
 		return errors.New("redis is not alive")
 	}
 	//fmt.Printf("SetLocalPeer peerId %s _rpcAddr %s\n", peerId, _rpcAddr)
@@ -64,7 +64,7 @@ func SetLocalPeer(peerId string) error {
 }
 
 func DelLocalPeer(peerId string) error {
-	if !isAlive {
+	if !IsAlive {
 		return errors.New("redis is not alive")
 	}
 	err := RedisCli.Del(peerId).Err()
@@ -76,7 +76,7 @@ func DelLocalPeer(peerId string) error {
 
 func UpdateLocalPeerExpiration(peerId string) error {
 	//fmt.Printf("UpdateLocalPeerExpiration peerId %s\n", peerId)
-	if !isAlive {
+	if !IsAlive {
 		return errors.New("redis is not alive")
 	}
 	err := RedisCli.Expire(peerId, PEER_EXPIRE_DUTATION).Err()
@@ -87,10 +87,10 @@ func UpdateLocalPeerExpiration(peerId string) error {
 }
 
 func takeABreak()  {
-	isAlive = false
+	IsAlive = false
 	go func() {
 		time.Sleep(BREAK_DURATION)
 
-		isAlive = true
+		IsAlive = true
 	}()
 }
