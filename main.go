@@ -362,6 +362,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}()
+		//err := conn.SetReadDeadline(time.Now().Add(h.heartbeat * 3))
 		msg := make([]wsutil.Message, 0, 4)
 		for {
 			msg, err = wsutil.ReadClientMessage(conn, msg[:0])
@@ -373,6 +374,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			for _, m := range msg {
 				// ping
 				if m.OpCode.IsControl() {
+					if m.OpCode == ws.OpClose {
+						conn.Close()    // TODO 验证
+						return
+					}
 					c.UpdateTs()
 					//log.Warnf("receive ping from %s platform %s", id, platform)
 					err := wsutil.HandleClientControlMessage(conn, m)
@@ -413,6 +418,7 @@ func setupConfigFromViper()  {
 	securityEnabled = viper.GetBool("security.enable")
 	maxTimeStampAge = viper.GetInt64("security.maxTimeStampAge")
 	securityToken = viper.GetString("security.token")
+	handler.StatsToken = viper.GetString("security.statsToken")
 }
 
 

@@ -32,17 +32,22 @@ type Resp struct {
 
 var (
 	G_CPU  int64
-	decay = 0.7
+	decay      = 0.7
+	StatsToken string
 )
 
 func init() {
 	// 监控cpu使用率
 	go cpuproc()
+
 }
 
 func StatsHandler(info SignalInfo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		//fmt.Printf("URL: %s\n", r.URL.String())
+		if !checkStatsToken(r) {
+			w.WriteHeader(403)
+			return
+		}
 		info.NumGoroutine = runtime.NumGoroutine()
 		info.NumPerMap = hub.GetClientNumPerMap()
 		if redis.IsAlive {
@@ -75,7 +80,10 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 
 func VersionHandler(version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		//fmt.Printf("URL: %s\n", r.URL.String())
+		if !checkStatsToken(r) {
+			w.WriteHeader(403)
+			return
+		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Write([]byte(fmt.Sprintf("%s", version)))
 
@@ -84,6 +92,10 @@ func VersionHandler(version string) http.HandlerFunc {
 
 func CountHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !checkStatsToken(r) {
+			w.WriteHeader(403)
+			return
+		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if redis.IsAlive {
 			w.Write([]byte(fmt.Sprintf("%d", hub.GetClientNum())))
@@ -96,9 +108,20 @@ func CountHandler() http.HandlerFunc {
 
 func TotalCountHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !checkStatsToken(r) {
+			w.WriteHeader(403)
+			return
+		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientNum() + rpcservice.GetTotalNumClient())))
 	}
+}
+
+func checkStatsToken(r *http.Request) bool {
+	if StatsToken == "" {
+		return true
+	}
+	return r.URL.Query().Get("token") == StatsToken
 }
 
 func cpuproc() {

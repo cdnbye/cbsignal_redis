@@ -22,6 +22,7 @@ const (
 	SIGNAL            = ".Signal"
 	SIGNAL_BATCH      = ".SignalBatch"
 	PING_INTERVAL     = 5
+	PING_MAX_RETRYS   = 3
 	READ_TIMEOUT      = 1500 * time.Millisecond
 	POOL_MIN_CONNS = 5
 	POOL_MAX_CONNS = 32
@@ -66,6 +67,8 @@ type Node struct {
 	Released         bool
 	NumClient        int
 	pipe             chan SignalReq
+	pingRetrys       int
+	IsDead           bool
 }
 
 type SignalResp struct {
@@ -120,10 +123,6 @@ func NewNode(addr string) (*Node, error) {
 
 func (s *Node) UpdateTs() {
 	s.ts = time.Now().Unix()
-}
-
-func (s *Node) IsMaster() bool {
-	return false
 }
 
 func (s *Node) Addr() string {
@@ -291,6 +290,10 @@ func (s *Node) StartHeartbeat() {
 				//log.Warnf("%s s.Released", s.addr)
 				break
 			}
+			if s.pingRetrys > PING_MAX_RETRYS {
+				s.IsDead = true
+				break
+			}
 			//log.Warnf("ConnPool %s conn %d idle %d", s.addr, s.connPool.NumTotalConn(), s.connPool.NumIdleConn())
 			ping := Ping{}
 			var pong Pong
@@ -298,10 +301,12 @@ func (s *Node) StartHeartbeat() {
 				log.Errorf(err, "node heartbeat %s", s.addr)
 				s.Lock()
 				s.isAlive = false
+				s.pingRetrys ++
 				s.Unlock()
 			} else {
 				s.Lock()
 				s.isAlive = true
+				s.pingRetrys = 0
 				s.NumClient = pong.NumClient
 				s.Unlock()
 			}

@@ -83,6 +83,11 @@ func (n *NodeHub) Get(addr string) (*Node, bool) {
 		ok = true
 		n.Add(addr, node)
 		node.StartHeartbeat()
+	} else {
+		if node.IsDead {
+			n.Delete(addr)
+			return nil, false
+		}
 	}
 	return node, ok
 }
