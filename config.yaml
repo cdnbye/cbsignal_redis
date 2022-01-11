@@ -30,8 +30,10 @@ ratelimit:
 #  enable: false                # Enable Authentication
 #  maxTimeStampAge: 3600        # Timestamp expiration time in seconds
 #  token: "%!$y&2"              # Custom token, no more than 8 characters
-#  statsToken: 123456           # Custom token for requesting stats info
 
+stats:
+  enable: true
+#  token: 123456           # Custom token for requesting stats info
 
 
 

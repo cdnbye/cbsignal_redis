@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	VERSION                   = "2.8.0"
+	VERSION                   = "2.9.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	EXPIRE_LIMIT              = 12 * 60
 	REJECT_JOIN_CPU_Threshold = 800
@@ -65,6 +65,7 @@ var (
 	limiter      *ratelimit.Bucket
 
 	securityEnabled bool
+	statsEnabled bool
 	maxTimeStampAge int64
 	securityToken string
 
@@ -246,18 +247,21 @@ func main() {
 	http.HandleFunc("/ws", wsHandler)
 	http.HandleFunc("/wss", wsHandler)
 	http.HandleFunc("/", wsHandler)
-	http.HandleFunc("/count", handler.CountHandler())
-	http.HandleFunc("/total_count", handler.TotalCountHandler())
-	http.HandleFunc("/version", handler.VersionHandler(VERSION))
 
-	info := handler.SignalInfo{
-		Version:            VERSION,
-		SecurityEnabled: securityEnabled,
+	if statsEnabled {
+		http.HandleFunc("/count", handler.CountHandler())
+		http.HandleFunc("/total_count", handler.TotalCountHandler())
+		http.HandleFunc("/version", handler.VersionHandler(VERSION))
+
+		info := handler.SignalInfo{
+			Version:            VERSION,
+			SecurityEnabled: securityEnabled,
+		}
+		if limitEnabled {
+			info.RateLimit = limitRate
+		}
+		http.HandleFunc("/info", handler.StatsHandler(info))
 	}
-	if limitEnabled {
-		info.RateLimit = limitRate
-	}
-	http.HandleFunc("/info", handler.StatsHandler(info))
 
 	<-intrChan
 
@@ -418,7 +422,8 @@ func setupConfigFromViper()  {
 	securityEnabled = viper.GetBool("security.enable")
 	maxTimeStampAge = viper.GetInt64("security.maxTimeStampAge")
 	securityToken = viper.GetString("security.token")
-	handler.StatsToken = viper.GetString("security.statsToken")
+	statsEnabled = viper.GetBool("stats.enable")
+	handler.StatsToken = viper.GetString("stats.token")
 }
 
 
