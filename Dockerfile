@@ -5,6 +5,7 @@ RUN go build -o cbsignal -v main.go
 
 FROM ubuntu:18.04
 WORKDIR /cbsignal_redis
-COPY --from=builder /go/src/app/cbsignal .
-RUN chmod +x cbsignal
-CMD ["./cbsignal", "-c", "config/config.yaml"]
+COPY --from=builder /go/src/app/cbsignal /go/bin/cbsignal
+COPY config .
+ENV PATH="/go/bin:${PATH}"
+CMD ["cbsignal", "-c", "config/config.yaml"]
