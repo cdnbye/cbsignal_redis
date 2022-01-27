@@ -63,6 +63,22 @@ RPC is used to communicate between all nodes. Specify RPC port in `config.yaml`,
 sudo ./admin.sh start cluster config.yaml
 ``` 
 
+## Run by Docker
+The default redis address in default config is 127.0.0.1:6379
+```sh
+sudo docker run --net host --restart=unless-stopped -d cdnbye/cbsignal_redis:latest
+```
+
+## Run by Docker with your own Config
+```sh
+mkdir config && cd config
+touch config.yaml
+```
+Then cony your config to config.yaml, you can copy your SSL cert to this directory, then:
+```sh
+sudo docker run --net host --restart=unless-stopped -d -v "$(pwd)"/config:/cbsignal_redis/config  cdnbye/cbsignal_redis:latest
+```
+
 ## Related projects
 * [cbsignal_node](https://github.com/cdnbye/cbsignal_node) - High performance CDNBye signaling service written in node.js
 
@@ -131,6 +147,22 @@ Status: 200
 ```bash
 sudo ./admin.sh start cluster config_cluster.yaml
 ``` 
+
+## 通过Docker部署
+默认配置连接redis地址是127.0.0.1:6379
+```sh
+sudo docker run --net host --restart=unless-stopped -d cdnbye/cbsignal_redis:latest
+```
+
+## 通过Docker部署并自定义配置
+```sh
+mkdir config && cd config
+touch config.yaml
+```
+config.yaml是你的自定义配置，可以在此配置证书文件等，然后运行：
+```sh
+sudo docker run --net host --restart=unless-stopped -d -v "$(pwd)"/config:/cbsignal_redis/config  cdnbye/cbsignal_redis:latest
+```
 
 ## 相关项目
 * [cbsignal_node](https://github.com/cdnbye/cbsignal_node) - 基于node.js开发的高性能CDNBye信令服务
