@@ -58,6 +58,10 @@ func GetClient(id string) (*client.Client, bool) {
 	return h.Clients.Get(id)
 }
 
+func HasClient(id string) bool {
+	return h.Clients.Has(id)
+}
+
 func RemoveClient(id string) {
 	h.Clients.Remove(id)
 }

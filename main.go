@@ -25,7 +25,7 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	//_ "net/http/pprof"
+	_ "net/http/pprof"
 	"net/rpc"
 
 	"os"
@@ -37,11 +37,11 @@ import (
 )
 
 const (
-	VERSION                   = "2.9.0"
+	VERSION                   = "2.11.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	EXPIRE_LIMIT              = 12 * 60
 	REJECT_JOIN_CPU_Threshold = 800
-	REJECT_MSG_CPU_Threshold  = 900
+	REJECT_MSG_CPU_Threshold  = 850
 )
 
 var (
@@ -144,7 +144,7 @@ func init()  {
 		for {
 			time.Sleep(CHECK_CLIENT_INTERVAL*time.Second)
 			now := time.Now().Unix()
-			log.Warnf("start check client alive...")
+			log.Infof("start check client alive...")
 			count := 0
 			for item := range hub.GetInstance().Clients.IterBuffered() {
 				cli := item.Val
@@ -157,10 +157,11 @@ func init()  {
 					}
 				}
 			}
-			log.Warnf("check client finished, closed %d clients", count)
+			if count > 0 {
+				log.Warnf("check client finished, closed %d clients", count)
+			}
 		}
 	}()
-
 }
 
 func main() {
@@ -294,6 +295,22 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		//}
 	}
 
+	r.ParseForm()
+	id := r.Form.Get("id")
+	//platform := r.Form.Get("p")
+	domain := r.Form.Get("d")
+	ver := r.Form.Get("v")
+	//log.Printf("id %s", id)
+	if id == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if hub.HasClient(id) {
+		log.Infof("hub already has %s domain %s ver %s", id, domain, ver)
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
 	// Upgrade connection
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
@@ -301,20 +318,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.ParseForm()
-	id := r.Form.Get("id")
-	//platform := r.Form.Get("p")
-	//log.Printf("id %s", id)
-	if id == "" {
-		conn.Close()
-		return
-	}
-
 	c := client.NewPeerClient(id, conn)
-
-	// test
-	//closeInvalidConn(c)
-	//return
 
 	// 校验
 	if securityEnabled {

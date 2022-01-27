@@ -80,9 +80,9 @@ func UpdateLocalPeerExpiration(peerId string) error {
 		return errors.New("redis is not alive")
 	}
 	err := RedisCli.Expire(peerId, PEER_EXPIRE_DUTATION).Err()
-	if err != nil {
-		takeABreak()
-	}
+	//if err != nil {
+	//	takeABreak()
+	//}
 	return err
 }
 
