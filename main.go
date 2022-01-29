@@ -306,7 +306,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if hub.HasClient(id) {
-		log.Infof("hub already has %s domain %s ver %s", id, domain, ver)
+		if domain != "" {
+			log.Warnf("hub already has %s domain %s ver %s", id, domain, ver)
+		}
 		w.WriteHeader(http.StatusConflict)
 		return
 	}
@@ -405,8 +407,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				hdr, err := handler.NewHandler(data, c)
 				if err != nil {
 					// 心跳包
-					//c.UpdateTs()
-					log.Error("NewHandler", err)
+					c.UpdateTs()
+					//log.Error("NewHandler", err)
 				} else {
 					hdr.Handle()
 				}

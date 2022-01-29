@@ -47,11 +47,9 @@ func DoRegister(client *client.Client) {
 		2. redis保存节点id和addr
 	*/
 	h.Clients.Set(client.PeerId, client)
-	go func() {
-		if err := redis.SetLocalPeer(client.PeerId); err != nil {
-			log.Error("SetLocalPeer", err)
-		}
-	}()
+	if err := redis.SetLocalPeer(client.PeerId); err != nil {
+		log.Error("SetLocalPeer", err)
+	}
 }
 
 func GetClient(id string) (*client.Client, bool) {
