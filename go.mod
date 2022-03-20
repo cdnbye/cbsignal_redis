@@ -12,5 +12,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.21.8
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.1
+	github.com/zhangyunhao116/fastrand v0.1.0 // indirect
+	github.com/zhangyunhao116/skipmap v0.7.0
 	golang.org/x/sys v0.0.0-20210816074244-15123e1e1f71 // indirect
 )

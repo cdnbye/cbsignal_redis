@@ -80,6 +80,17 @@ github.com/subosito/gotenv
 github.com/tklauser/go-sysconf
 # github.com/tklauser/numcpus v0.3.0
 github.com/tklauser/numcpus
+# github.com/zhangyunhao116/fastrand v0.1.0
+## explicit
+github.com/zhangyunhao116/fastrand
+# github.com/zhangyunhao116/sbconv v0.2.1
+github.com/zhangyunhao116/sbconv
+# github.com/zhangyunhao116/skipmap v0.7.0
+## explicit
+github.com/zhangyunhao116/skipmap
+# github.com/zhangyunhao116/wyhash v0.3.2
+github.com/zhangyunhao116/wyhash
+github.com/zhangyunhao116/wyhash/internal/unalign
 # golang.org/x/sys v0.0.0-20210816074244-15123e1e1f71
 ## explicit
 golang.org/x/sys/internal/unsafeheader

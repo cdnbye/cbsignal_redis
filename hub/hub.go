@@ -3,7 +3,8 @@ package hub
 import (
 	"cbsignal/client"
 	"cbsignal/redis"
-	"cbsignal/util/cmap"
+	"cbsignal/util/fastmap"
+	"cbsignal/util/fastmap/cmap"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lexkong/log"
 	"sync"
@@ -16,14 +17,15 @@ var (
 
 type Hub struct {
 
-	Clients cmap.ConcurrentMap
+	Clients fastmap.FastMap
 
 }
 
 func Init() {
 	once.Do(func() {
 		h = &Hub{
-			Clients: cmap.New(),
+			Clients: cmap.NewCMap(),
+			//Clients: smap.NewSMap(),
 		}
 	})
 }

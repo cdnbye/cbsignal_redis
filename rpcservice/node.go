@@ -26,7 +26,7 @@ const (
 	READ_TIMEOUT      = 1500 * time.Millisecond
 	POOL_MIN_CONNS = 5
 	POOL_MAX_CONNS = 32
-	CONSUME_INTERVAL = 20 * time.Millisecond
+	CONSUME_INTERVAL = 30 * time.Millisecond
 	ALERT_THRESHOLD = 100
 )
 
@@ -207,7 +207,7 @@ func (s *Node)Consume()  {
 		go func() {
 			if err := s.sendMsgSignalBatch(items); err != nil {
 				//lock.Unlock()
-				log.Error("sendMsgSignalBatch", err)
+				log.Errorf(err, "sendMsgSignalBatch to %s", s.addr)
 			}
 		}()
 	}

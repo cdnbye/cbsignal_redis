@@ -19,7 +19,7 @@ type ConcurrentMapShared struct {
 }
 
 // Creates a new concurrent map.
-func New() ConcurrentMap {
+func NewCMap() ConcurrentMap {
 	m := make(ConcurrentMap, SHARD_COUNT)
 	for i := 0; i < SHARD_COUNT; i++ {
 		m[i] = &ConcurrentMapShared{items: make(map[string]*client.Client)}
@@ -214,6 +214,14 @@ func (m ConcurrentMap) IterBuffered() <-chan Tuple {
 	ch := make(chan Tuple, total)
 	go fanIn(chans, ch)
 	return ch
+}
+
+func (m ConcurrentMap) Range(f func(string, *client.Client) bool) {
+	for item := range m.IterBuffered() {
+		if !f(item.Key, item.Val) {
+			break
+		}
+	}
 }
 
 func (m ConcurrentMap) GetChanByShard(index int) chan Tuple {

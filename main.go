@@ -37,11 +37,11 @@ import (
 )
 
 const (
-	VERSION                   = "2.11.0"
+	VERSION                   = "2.12.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	EXPIRE_LIMIT              = 12 * 60
-	REJECT_JOIN_CPU_Threshold = 800
-	REJECT_MSG_CPU_Threshold  = 850
+	REJECT_JOIN_CPU_Threshold = 850
+	REJECT_MSG_CPU_Threshold  = 900
 )
 
 var (
@@ -146,8 +146,8 @@ func init()  {
 			now := time.Now().Unix()
 			log.Infof("start check client alive...")
 			count := 0
-			for item := range hub.GetInstance().Clients.IterBuffered() {
-				cli := item.Val
+			hub.GetInstance().Clients.Range(func(key string, cli *client.Client) bool {
+				//log.Warnf("check client %s", cli.PeerId)
 				if cli.IsExpired(now, EXPIRE_LIMIT) {
 					// 节点过期
 					//log.Warnf("client %s is expired for %d, close it", cli.PeerId, now-cli.Timestamp)
@@ -156,7 +156,19 @@ func init()  {
 						count ++
 					}
 				}
-			}
+				return true
+			})
+			//for item := range hub.GetInstance().Clients.IterBuffered() {
+			//	cli := item.Val
+			//	if cli.IsExpired(now, EXPIRE_LIMIT) {
+			//		// 节点过期
+			//		//log.Warnf("client %s is expired for %d, close it", cli.PeerId, now-cli.Timestamp)
+			//		if ok := hub.DoUnregister(cli.PeerId); ok {
+			//			cli.Close()
+			//			count ++
+			//		}
+			//	}
+			//}
 			if count > 0 {
 				log.Warnf("check client finished, closed %d clients", count)
 			}
@@ -295,19 +307,19 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		//}
 	}
 
-	r.ParseForm()
-	id := r.Form.Get("id")
-	//platform := r.Form.Get("p")
-	domain := r.Form.Get("d")
-	ver := r.Form.Get("v")
+	query := r.URL.Query()
+	id := query.Get("id")
+	//platform := query.Get("p")
+	domain := query.Get("d")
+	ver := query.Get("v")
 	//log.Printf("id %s", id)
-	if id == "" {
+	if id == "" || len(id) < 6 {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	if hub.HasClient(id) {
 		if domain != "" {
-			log.Warnf("hub already has %s domain %s ver %s", id, domain, ver)
+			log.Infof("hub already has %s domain %s ver %s", id, domain, ver)
 		}
 		w.WriteHeader(http.StatusConflict)
 		return
@@ -324,9 +336,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 校验
 	if securityEnabled {
-		token := strings.Split(r.Form.Get("token"), "-")
+		token := strings.Split(query.Get("token"), "-")
 		if len(token) < 2 {
-			log.Warnf("token not valid %s origin %s", r.Form.Get("token"), r.Header.Get("Origin"))
+			log.Warnf("token not valid %s origin %s", query.Get("token"), r.Header.Get("Origin"))
 			closeInvalidConn(c)
 			return
 		}
