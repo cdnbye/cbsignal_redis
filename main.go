@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	VERSION                   = "2.12.0"
+	VERSION                   = "3.0.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	EXPIRE_LIMIT              = 12 * 60
 	REJECT_JOIN_CPU_Threshold = 850
@@ -108,11 +108,12 @@ func init()  {
 	}
 
 	selfIp = util.GetInternalIP()
-	selfPort = viper.GetString("rpc_port")
+	selfPort = viper.GetString("rpc.port")
 	if selfPort == "" {
 		panic("port for rpc is required")
 	}
 	selfAddr = fmt.Sprintf("%s:%s", selfIp, selfPort)
+	rpcservice.Token = viper.GetString("rpc.token")
 
 	// init redis client
 	isRedisCluster := viper.GetBool("redis.is_cluster")
@@ -441,6 +442,7 @@ func setupConfigFromViper()  {
 	maxTimeStampAge = viper.GetInt64("security.maxTimeStampAge")
 	securityToken = viper.GetString("security.token")
 	statsEnabled = viper.GetBool("stats.enable")
+	rpcservice.Token = viper.GetString("rpc.token")
 	handler.StatsToken = viper.GetString("stats.token")
 }
 

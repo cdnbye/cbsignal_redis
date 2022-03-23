@@ -13,6 +13,7 @@ import (
 
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
+	Token string
 )
 
 const (
@@ -30,8 +31,6 @@ const (
 	ALERT_THRESHOLD = 100
 )
 
-
-
 type JoinLeaveReq struct {
 	PeerId string // 节点id
 	Addr   string
@@ -48,6 +47,8 @@ type SignalReq struct {
 }
 
 type SignalBatchReq struct {
+	Token string
+	From  string
 	Items []SignalReq
 }
 
@@ -133,32 +134,6 @@ func (s *Node) Ts() int64 {
 	return s.ts
 }
 
-//func (s *Node) SendMsgSignal(signalResp interface{}, toPeerId string) error {
-//	//log.Infof("SendMsgSignal to %s", s.addr)
-//
-//	if !s.IsAlive() {
-//		return errors.New(fmt.Sprintf("node %s is not alive when send signal", s.Addr()))
-//	}
-//
-//	b, err := json.Marshal(signalResp)
-//	if err != nil {
-//		return err
-//	}
-//	req := SignalReq{
-//		ToPeerId: toPeerId,
-//		Data:     b,
-//	}
-//	var resp RpcResp
-//	err = s.sendMsg(SIGNAL_SERVICE+SIGNAL, req, &resp)
-//	if err != nil {
-//		return err
-//	}
-//	if !resp.Success {
-//		return errors.New(fmt.Sprintf("request is not success"))
-//	}
-//	return nil
-//}
-
 func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 	//log.Infof("SendMsgSignal to %s", s.addr)
 
@@ -215,7 +190,11 @@ func (s *Node)Consume()  {
 
 func (s *Node)sendMsgSignalBatch(items []SignalReq) error {
 	var resp RpcResp
-	batchReq := &SignalBatchReq{Items:items}
+	batchReq := &SignalBatchReq{
+		Items: items,
+		Token: Token,
+		From:  s.Addr(),
+	}
 	log.Infof("send batch request len %d to %s", len(batchReq.Items), s.addr)
 	err := s.sendMsg(SIGNAL_SERVICE+SIGNAL_BATCH, batchReq, &resp)
 	if err != nil {
