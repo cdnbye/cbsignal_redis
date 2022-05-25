@@ -8,20 +8,6 @@ import (
 	"github.com/lexkong/log"
 )
 
-//var (
-//	totalCount int64 = 0
-//	notFoundCount int64 = 0
-//)
-//
-//func init() {
-//	go func() {
-//		for {
-//			time.Sleep(10*time.Second)
-//			log.Warnf("[test] total %d, notFound %d ratio %f", totalCount, notFoundCount, float64(notFoundCount)/float64(totalCount))
-//		}
-//	}()
-//}
-
 type SignalHandler struct {
 	Msg   *SignalMsg
 	Cli   *client.Client
@@ -75,7 +61,6 @@ func (s *SignalHandler)Handle() {
 		}
 		return
 	}
-	//atomic.AddInt64(&totalCount, 1)  // test
 	if addr, err := redis.GetRemotePeerRpcAddr(toPeerId); err == nil {
 		// 如果rpc节点是本节点
 		if addr == rpcservice.GetSelfAddr() {
@@ -97,7 +82,6 @@ func (s *SignalHandler)Handle() {
 		cli.EnqueueRemotePeer(toPeerId, addr)
 		return
 	} else {
-		//atomic.AddInt64(&notFoundCount, 1)  // test
 		log.Info(err.Error())
 	}
 

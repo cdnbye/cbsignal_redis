@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+const (
+	HEALTH_CHECK_CPU_LIMIT = 60
+)
+
 type SignalInfo struct {
 	Version string `json:"version"`
 	CurrentConnections int `json:"current_connections"`
@@ -40,6 +44,19 @@ func init() {
 	// 监控cpu使用率
 	go cpuproc()
 
+}
+
+func HealthCheck() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cpuUsage := atomic.LoadInt64(&G_CPU)/10
+		if cpuUsage >= HEALTH_CHECK_CPU_LIMIT {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(fmt.Sprintf("service overloaded, cpu %d", cpuUsage)))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf("service normal, cpu %d", cpuUsage)))
+	}
 }
 
 func StatsHandler(info SignalInfo) http.HandlerFunc {

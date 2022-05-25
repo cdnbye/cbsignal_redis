@@ -10,6 +10,7 @@ import (
 	"cbsignal/rpcservice/broadcast"
 	"cbsignal/rpcservice/signaling"
 	"cbsignal/util"
+	"cbsignal/util/fastmap/cmap"
 	"cbsignal/util/ratelimit"
 	"crypto/hmac"
 	"crypto/md5"
@@ -37,11 +38,11 @@ import (
 )
 
 const (
-	VERSION                   = "3.0.0"
+	VERSION                   = "3.0.1"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	EXPIRE_LIMIT              = 12 * 60
-	REJECT_JOIN_CPU_Threshold = 850
-	REJECT_MSG_CPU_Threshold  = 900
+	REJECT_JOIN_CPU_Threshold = 800
+	REJECT_MSG_CPU_Threshold  = 850
 )
 
 var (
@@ -136,45 +137,13 @@ func init()  {
 	//开始监听
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
-		log.Warnf("config is changed :%s \n", e.Name)
+		//log.Warnf("config is changed :%s \n", e.Name)
 		setupConfigFromViper()
 	})
 
 	hub.Init()
-	go func() {
-		for {
-			time.Sleep(CHECK_CLIENT_INTERVAL*time.Second)
-			now := time.Now().Unix()
-			log.Infof("start check client alive...")
-			count := 0
-			hub.GetInstance().Clients.Range(func(key string, cli *client.Client) bool {
-				//log.Warnf("check client %s", cli.PeerId)
-				if cli.IsExpired(now, EXPIRE_LIMIT) {
-					// 节点过期
-					//log.Warnf("client %s is expired for %d, close it", cli.PeerId, now-cli.Timestamp)
-					if ok := hub.DoUnregister(cli.PeerId); ok {
-						cli.Close()
-						count ++
-					}
-				}
-				return true
-			})
-			//for item := range hub.GetInstance().Clients.IterBuffered() {
-			//	cli := item.Val
-			//	if cli.IsExpired(now, EXPIRE_LIMIT) {
-			//		// 节点过期
-			//		//log.Warnf("client %s is expired for %d, close it", cli.PeerId, now-cli.Timestamp)
-			//		if ok := hub.DoUnregister(cli.PeerId); ok {
-			//			cli.Close()
-			//			count ++
-			//		}
-			//	}
-			//}
-			if count > 0 {
-				log.Warnf("check client finished, closed %d clients", count)
-			}
-		}
-	}()
+
+	go checkConns()
 }
 
 func main() {
@@ -276,6 +245,8 @@ func main() {
 		}
 		http.HandleFunc("/info", handler.StatsHandler(info))
 	}
+	// health check
+	http.HandleFunc("/health_check", handler.HealthCheck())
 
 	<-intrChan
 
@@ -444,6 +415,41 @@ func setupConfigFromViper()  {
 	statsEnabled = viper.GetBool("stats.enable")
 	rpcservice.Token = viper.GetString("rpc.token")
 	handler.StatsToken = viper.GetString("stats.token")
+}
+
+func checkConns()  {
+	ticker := time.NewTicker(CHECK_CLIENT_INTERVAL*time.Second) // same to cpu sample rate
+	defer func() {
+		ticker.Stop()
+		if err := recover(); err != nil {
+			go checkConns()
+		}
+	}()
+
+	for range ticker.C {
+		log.Infof("start check client alive...")
+		go func() {
+			count := 0
+			for i := 0; i < cmap.SHARD_COUNT; i++ {
+				now := time.Now().Unix()
+				for val := range hub.GetInstance().Clients.GetChanByShard(i) {
+					cli := val.Val
+					if cli.IsExpired(now, EXPIRE_LIMIT) {
+						// 节点过期
+						//log.Warnf("client %s is expired for %d, close it", cli.PeerId, now-cli.Timestamp)
+						if ok := hub.DoUnregister(cli.PeerId); ok {
+							cli.Close()
+							count ++
+						}
+					}
+				}
+				time.Sleep(2 * time.Second)
+			}
+			if count > 0 {
+				log.Warnf("check cmap finished, closed %d clients", count)
+			}
+		}()
+	}
 }
 
 

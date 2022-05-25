@@ -167,7 +167,7 @@ func (s *Node)Consume()  {
 	for range ticker.C {
 		l := len(s.pipe)
 		if l > ALERT_THRESHOLD {
-			log.Warnf("pipe len is %d", l)
+			log.Warnf("rpc pipe len is %d", l)
 		}
 		items = make([]SignalReq, 0, l)
 		for i:=0;i<l;i++ {
