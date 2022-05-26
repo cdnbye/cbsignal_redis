@@ -18,8 +18,8 @@ const (
 
 type SignalInfo struct {
 	Version string `json:"version"`
-	CurrentConnections int `json:"current_connections"`
-	TotalConnections int `json:"total_connections"`
+	CurrentConnections int32 `json:"current_connections"`
+	TotalConnections int32 `json:"total_connections"`
 	NumInstance int `json:"num_instance"`
 	RateLimit          int64  `json:"rate_limit,omitempty"`
 	SecurityEnabled    bool `json:"security_enabled,omitempty"`

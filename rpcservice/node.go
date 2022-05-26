@@ -1,63 +1,30 @@
 package rpcservice
 
 import (
+	message "cbsignal/protobuf"
 	"cbsignal/rpcservice/pool"
+	"cbsignal/rpcservice/signaling"
 	"errors"
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lexkong/log"
-	"net/rpc"
+	"runtime"
 	"sync"
 	"time"
 )
 
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
-	Token string
+	poolMaxConns = runtime.NumCPU() * 8
 )
 
 const (
-	BROADCAST_SERVICE = "BroadcastService"
-	PONG              = ".Pong"
-	SIGNAL_SERVICE    = "SignalService"
-	SIGNAL            = ".Signal"
-	SIGNAL_BATCH      = ".SignalBatch"
 	PING_INTERVAL     = 5
 	PING_MAX_RETRYS   = 3
-	READ_TIMEOUT      = 1500 * time.Millisecond
-	POOL_MIN_CONNS = 5
-	POOL_MAX_CONNS = 32
-	CONSUME_INTERVAL = 30 * time.Millisecond
+	POOL_MIN_CONNS = 3
+	CONSUME_INTERVAL = 25 * time.Millisecond
 	ALERT_THRESHOLD = 100
 )
-
-type JoinLeaveReq struct {
-	PeerId string // 节点id
-	Addr   string
-}
-
-type RpcResp struct {
-	Success bool
-	Reason  string
-}
-
-type SignalReq struct {
-	ToPeerId string
-	Data     []byte
-}
-
-type SignalBatchReq struct {
-	Token string
-	From  string
-	Items []SignalReq
-}
-
-type Ping struct {
-}
-
-type Pong struct {
-	NumClient int
-}
 
 type Node struct {
 	sync.Mutex
@@ -66,8 +33,8 @@ type Node struct {
 	isAlive          bool // 是否存活
 	connPool         pool.Pool
 	Released         bool
-	NumClient        int
-	pipe             chan SignalReq
+	NumClient        int32
+	pipe             chan *message.SignalReq
 	pingRetrys       int
 	IsDead           bool
 }
@@ -82,27 +49,38 @@ type SignalResp struct {
 func NewNode(addr string) (*Node, error) {
 	node := Node{
 		addr: addr,
-		pipe: make(chan SignalReq, 1000),
+		pipe: make(chan *message.SignalReq, 1000),
 		ts:   time.Now().Unix(),
 	}
 
 	//factory 创建连接的方法
-	factory := func() (*rpc.Client, error) {
-		c, err := rpc.Dial("tcp", addr)
+	factory := func() (*signaling.SignalServiceClient, error) {
+		c, err := signaling.DialSignalService("tcp", addr)
 		if err != nil {
-
 			return nil, err
+		}
+		// auth
+		authReq := &message.Auth{
+			Token: signaling.Token,
+			From: GetSelfAddr(),
+		}
+		var authResp message.RpcResp
+		if err := c.Login(authReq, &authResp); err != nil {
+			return nil, err
+		}
+		if !authResp.Success {
+			return nil, errors.New(authResp.Reason)
 		}
 		return c, nil
 	}
 
 	//close 关闭连接的方法
-	closer := func(v *rpc.Client) error { return v.Close() }
+	closer := func(v *signaling.SignalServiceClient) error { return v.Close() }
 
 	poolConfig := &pool.Config{
 		InitialCap: POOL_MIN_CONNS,         //资源池初始连接数
-		MaxIdle:   POOL_MAX_CONNS,                 //最大空闲连接数
-		MaxCap:     POOL_MAX_CONNS,//最大并发连接数
+		MaxIdle:   poolMaxConns,                 //最大空闲连接数
+		MaxCap:     poolMaxConns,//最大并发连接数
 		Factory:    factory,
 		Close:      closer,
 		//连接最大空闲时间，超过该时间的连接 将会关闭，可避免空闲时连接EOF，自动失效的问题
@@ -145,7 +123,7 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 	if err != nil {
 		return err
 	}
-	req := SignalReq{
+	req := &message.SignalReq{
 		ToPeerId: toPeerId,
 		Data:     b,
 	}
@@ -163,13 +141,13 @@ func (s *Node)Consume()  {
 			go s.Consume()
 		}
 	}()
-	var items []SignalReq
+	var items []*message.SignalReq
 	for range ticker.C {
 		l := len(s.pipe)
 		if l > ALERT_THRESHOLD {
 			log.Warnf("rpc pipe len is %d", l)
 		}
-		items = make([]SignalReq, 0, l)
+		items = make([]*message.SignalReq, 0, l)
 		for i:=0;i<l;i++ {
 			m := <- s.pipe
 			//log.Infof("append signal from %s", m.ToPeerId)
@@ -188,15 +166,13 @@ func (s *Node)Consume()  {
 	}
 }
 
-func (s *Node)sendMsgSignalBatch(items []SignalReq) error {
-	var resp RpcResp
-	batchReq := &SignalBatchReq{
+func (s *Node)sendMsgSignalBatch(items []*message.SignalReq) error {
+	var resp message.RpcResp
+	batchReq := &message.SignalBatchReq{
 		Items: items,
-		Token: Token,
-		From:  s.Addr(),
 	}
 	log.Infof("send batch request len %d to %s", len(batchReq.Items), s.addr)
-	err := s.sendMsg(SIGNAL_SERVICE+SIGNAL_BATCH, batchReq, &resp)
+	err := s.sendSignalBatch(batchReq, &resp)
 	if err != nil {
 		return err
 	}
@@ -206,18 +182,13 @@ func (s *Node)sendMsgSignalBatch(items []SignalReq) error {
 	return nil
 }
 
-func (s *Node) SendMsgPing(request Ping, reply *Pong) error {
+func (s *Node) SendMsgPing(request *message.Ping, reply *message.Pong) error {
 	//log.Infof("SendMsgPing to %s", s.addr)
-	return s.sendMsg(BROADCAST_SERVICE+PONG, request, reply)
-}
-
-func (s *Node) sendMsg(method string, request interface{}, reply interface{}) error {
 	client, err := s.connPool.Acquire()
-
 	if err != nil {
 		return err
 	}
-	err = s.sendInternal(method, request, reply, client)
+	err = client.Pong(request, reply)
 	if err != nil {
 		s.connPool.Close(client)
 	} else {
@@ -226,40 +197,18 @@ func (s *Node) sendMsg(method string, request interface{}, reply interface{}) er
 	return err
 }
 
-func (s *Node) sendInternal(method string, request interface{}, reply interface{}, client *rpc.Client) error {
-	//start := time.Now()
-	//done := make(chan error, 1)
-
-	done := make(chan *rpc.Call, 1)
-
-	//log.Warnf("GenericPool now conn %d idle %d", s.connPool.NumTotalConn(), s.connPool.NumIdleConn())
-
-	client.Go(method, request, reply, done)
-
-	select {
-		case <-time.After(READ_TIMEOUT):
-			//log.Warnf("rpc call timeout %s", method)
-			//s.Client.Close()
-			return fmt.Errorf("rpc call timeout %s", method)
-		case call := <-done:
-			//.Add(timeout).Before(time.Now())
-			//elapsed := time.Since(start)
-			//log.Warnf("%d %d", elapsed.Nanoseconds(), PRINT_WARN_LIMIT_NANO)
-			//if start.Add(PRINT_WARN_LIMIT_NANO).Before(time.Now()) {
-			//	log.Warnf("rpc send %s cost %v", method, elapsed)
-			//}
-
-			//if err.Error != nil {
-			//	//rpcClient.Close()
-			//	return err.Error
-			//}
-			if err := call.Error; err != nil {
-				//rpcClient.Close()
-				return err
-			}
+func (s *Node) sendSignalBatch(request *message.SignalBatchReq, reply *message.RpcResp) error {
+	client, err := s.connPool.Acquire()
+	if err != nil {
+		return err
 	}
-
-	return nil
+	err = client.SignalBatch(request, reply)
+	if err != nil {
+		s.connPool.Close(client)
+	} else {
+		s.connPool.Release(client)
+	}
+	return err
 }
 
 func (s *Node) StartHeartbeat() {
@@ -274,8 +223,8 @@ func (s *Node) StartHeartbeat() {
 				break
 			}
 			//log.Warnf("ConnPool %s conn %d idle %d", s.addr, s.connPool.NumTotalConn(), s.connPool.NumIdleConn())
-			ping := Ping{}
-			var pong Pong
+			ping := &message.Ping{From: GetSelfAddr()}
+			var pong message.Pong
 			if err := s.SendMsgPing(ping, &pong); err != nil {
 				log.Errorf(err, "node heartbeat %s", s.addr)
 				s.Lock()

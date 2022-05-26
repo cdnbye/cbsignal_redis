@@ -2,27 +2,57 @@ package signaling
 
 import (
 	"cbsignal/hub"
-	"cbsignal/rpcservice"
+	message "cbsignal/protobuf"
 	"errors"
 	"fmt"
 	"github.com/lexkong/log"
+	"github.com/mars9/codec"
+	"net"
 	"net/rpc"
 )
 
-type Service struct {
-
+type SignalServiceInterface = interface {
+	SignalBatch(request *message.SignalBatchReq, reply *message.RpcResp) error
+	Login(request *message.Auth, reply *message.RpcResp ) error
+	Pong(request *message.Ping, reply *message.Pong) error
 }
 
-func RegisterSignalService() error {
-	log.Infof("register rpc service %s", rpcservice.SIGNAL_SERVICE)
-	s := new(Service)
-	return rpc.RegisterName(rpcservice.SIGNAL_SERVICE, s)
+func RegisterSignalService(svc SignalServiceInterface) error {
+	return rpc.RegisterName(SIGNAL_SERVICE, svc)
 }
 
-func (b *Service) SignalBatch(request rpcservice.SignalBatchReq, reply *rpcservice.RpcResp) error {
-	log.Infof("received %d signals token %s", len(request.Items), request.Token)
-	if request.Token != rpcservice.Token {
-		msg := fmt.Sprintf("rpc from %s token not matched", request.From)
+func DialSignalService(network, address string) (*SignalServiceClient, error) {
+	conn, err := net.Dial(network, address)
+	if err != nil {
+		return nil, err
+	}
+	c := rpc.NewClientWithCodec(codec.NewClientCodec(conn))
+	return &SignalServiceClient{Client: c}, nil
+}
+
+type SignalService struct {
+	Conn    net.Conn
+	isLogin bool
+	from    string
+}
+
+func (b *SignalService) Login(request *message.Auth, reply *message.RpcResp) error {
+	if request.Token != Token {
+		msg := fmt.Sprintf("rpc from %s token %s not matched %s", request.From, request.Token, Token)
+		log.Warn(msg)
+		return errors.New(msg)
+	}
+	b.isLogin = true
+	b.from = request.From
+	log.Infof("receive login from %s", request.From)
+	reply.Success = true
+	return nil
+}
+
+func (b *SignalService) SignalBatch(request *message.SignalBatchReq, reply *message.RpcResp) error {
+	log.Infof("received %d signals", len(request.Items))
+	if !b.isLogin {
+		msg := fmt.Sprintf("rpc from %s not auth", b.from)
 		log.Warn(msg)
 		return errors.New(msg)
 	}
@@ -43,5 +73,16 @@ func (b *Service) SignalBatch(request rpcservice.SignalBatchReq, reply *rpcservi
 	}()
 
 	reply.Success = true
+	return nil
+}
+
+func (b *SignalService) Pong(request *message.Ping, reply *message.Pong) error {
+	//time.Sleep(1 * time.Second)
+	if !b.isLogin {
+		msg := fmt.Sprintf("rpc from %s not auth", request.From)
+		log.Warn(msg)
+		return errors.New(msg)
+	}
+	reply.NumClient = hub.GetClientNum()
 	return nil
 }

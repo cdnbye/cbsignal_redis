@@ -1,10 +1,10 @@
 package pool
 
 import (
+	. "cbsignal/rpcservice/signaling"
 	"errors"
 	"fmt"
 	"github.com/lexkong/log"
-	"net/rpc"
 	"sync"
 	"time"
 	//"reflect"
@@ -24,11 +24,11 @@ type Config struct {
 	//最大空闲连接
 	MaxIdle int
 	//生成连接的方法
-	Factory func() (*rpc.Client, error)
+	Factory func() (*SignalServiceClient, error)
 	//关闭连接的方法
-	Close func(*rpc.Client) error
+	Close func(*SignalServiceClient) error
 	//检查连接是否有效的方法
-	Ping func(*rpc.Client) error
+	Ping func(*SignalServiceClient) error
 	//连接最大空闲时间，超过该事件则将失效
 	IdleTimeout time.Duration
 }
@@ -41,9 +41,9 @@ type connReq struct {
 type channelPool struct {
 	mu                       sync.RWMutex
 	conns                    chan *idleConn
-	factory                  func() (*rpc.Client, error)
-	close                    func(*rpc.Client) error
-	ping                     func(*rpc.Client) error
+	factory                  func() (*SignalServiceClient, error)
+	close                    func(*SignalServiceClient) error
+	ping                     func(*SignalServiceClient) error
 	idleTimeout, waitTimeOut time.Duration
 	maxActive                int
 	openingConns             int
@@ -51,7 +51,7 @@ type channelPool struct {
 }
 
 type idleConn struct {
-	conn *rpc.Client
+	conn *SignalServiceClient
 	t    time.Time
 }
 
@@ -101,7 +101,7 @@ func (c *channelPool) getConns() chan *idleConn {
 }
 
 // Get 从pool中取一个连接
-func (c *channelPool) Acquire() (*rpc.Client, error) {
+func (c *channelPool) Acquire() (*SignalServiceClient, error) {
 	conns := c.getConns()
 	if conns == nil {
 		return nil, ErrClosed
@@ -165,7 +165,7 @@ func (c *channelPool) Acquire() (*rpc.Client, error) {
 }
 
 // Put 将连接放回pool中
-func (c *channelPool) Release(conn *rpc.Client) error {
+func (c *channelPool) Release(conn *SignalServiceClient) error {
 	if conn == nil {
 		return errors.New("connection is nil. rejecting")
 	}
@@ -200,7 +200,7 @@ func (c *channelPool) Release(conn *rpc.Client) error {
 }
 
 // Close 关闭单条连接
-func (c *channelPool) Close(conn *rpc.Client) error {
+func (c *channelPool) Close(conn *SignalServiceClient) error {
 	if conn == nil {
 		return errors.New("connection is nil. rejecting")
 	}
@@ -214,7 +214,7 @@ func (c *channelPool) Close(conn *rpc.Client) error {
 }
 
 // Ping 检查单条连接是否有效
-func (c *channelPool) Ping(conn *rpc.Client) error {
+func (c *channelPool) Ping(conn *SignalServiceClient) error {
 	if conn == nil {
 		return errors.New("connection is nil. rejecting")
 	}

@@ -7,7 +7,6 @@ import (
 	"cbsignal/hub"
 	"cbsignal/redis"
 	"cbsignal/rpcservice"
-	"cbsignal/rpcservice/broadcast"
 	"cbsignal/rpcservice/signaling"
 	"cbsignal/util"
 	"cbsignal/util/fastmap/cmap"
@@ -20,6 +19,7 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/lexkong/log"
+	"github.com/mars9/codec"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"net"
@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	VERSION                   = "3.0.1"
+	VERSION                   = "4.0.1"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	EXPIRE_LIMIT              = 12 * 60
 	REJECT_JOIN_CPU_Threshold = 800
@@ -114,7 +114,7 @@ func init()  {
 		panic("port for rpc is required")
 	}
 	selfAddr = fmt.Sprintf("%s:%s", selfIp, selfPort)
-	rpcservice.Token = viper.GetString("rpc.token")
+	signaling.Token = viper.GetString("rpc.token")
 
 	// init redis client
 	isRedisCluster := viper.GetBool("redis.is_cluster")
@@ -212,18 +212,18 @@ func main() {
 			if err != nil {
 				log.Fatal("Accept error:", err)
 			}
-			go rpc.ServeConn(conn)
+			go func() {
+				defer conn.Close()
+				p := rpc.NewServer()
+				p.Register(&signaling.SignalService{Conn: conn})
+				p.ServeCodec(codec.NewServerCodec(conn))
+			}()
 		}
 	}()
 	time.Sleep(6*time.Second)
 
-	// 注册rpc广播服务
-	if err := broadcast.RegisterBroadcastService();err != nil {
-		panic(err)
-	}
-
 	// 注册rpc信令服务
-	if err := signaling.RegisterSignalService();err != nil {
+	if err := signaling.RegisterSignalService(new(signaling.SignalService));err != nil {
 		panic(err)
 	}
 
@@ -413,7 +413,7 @@ func setupConfigFromViper()  {
 	maxTimeStampAge = viper.GetInt64("security.maxTimeStampAge")
 	securityToken = viper.GetString("security.token")
 	statsEnabled = viper.GetBool("stats.enable")
-	rpcservice.Token = viper.GetString("rpc.token")
+	signaling.Token = viper.GetString("rpc.token")
 	handler.StatsToken = viper.GetString("stats.token")
 }
 

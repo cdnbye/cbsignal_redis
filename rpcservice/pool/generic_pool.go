@@ -1,8 +1,8 @@
 package pool
 
 import (
+	. "cbsignal/rpcservice/signaling"
 	"errors"
-	"net/rpc"
 	"sync"
 	"time"
 )
@@ -12,13 +12,13 @@ var (
 	ErrPoolClosed    = errors.New("pool closed")
 )
 
-type factory func() (*rpc.Client, error)
+type factory func() (*SignalServiceClient, error)
 
 
 
 type GenericPool struct {
 	sync.Mutex
-	pool        chan *rpc.Client
+	pool        chan *SignalServiceClient
 	maxOpen     int  // 池中最大资源数
 	numOpen     int  // 当前池中资源数
 	minOpen     int  // 池中最少资源数
@@ -36,7 +36,7 @@ func NewGenericPool(minOpen, maxOpen int, maxLifetime time.Duration, factory fac
 		minOpen:     minOpen,
 		maxLifetime: maxLifetime,
 		factory:     factory,
-		pool:        make(chan *rpc.Client, maxOpen),
+		pool:        make(chan *SignalServiceClient, maxOpen),
 	}
 
 	for i := 0; i < minOpen; i++ {
@@ -50,7 +50,7 @@ func NewGenericPool(minOpen, maxOpen int, maxLifetime time.Duration, factory fac
 	return p, nil
 }
 
-func (p *GenericPool) Acquire() (*rpc.Client, error) {
+func (p *GenericPool) Acquire() (*SignalServiceClient, error) {
 	if p.closed {
 		return nil, ErrPoolClosed
 	}
@@ -64,7 +64,7 @@ func (p *GenericPool) Acquire() (*rpc.Client, error) {
 	}
 }
 
-func (p *GenericPool) getOrCreate() (*rpc.Client, error) {
+func (p *GenericPool) getOrCreate() (*SignalServiceClient, error) {
 	select {
 	case closer := <-p.pool:
 		return closer, nil
@@ -104,7 +104,7 @@ func (p *GenericPool) getOrCreate() (*rpc.Client, error) {
 }
 
 // 释放单个资源到连接池
-func (p *GenericPool) Release(closer *rpc.Client) error {
+func (p *GenericPool) Release(closer *SignalServiceClient) error {
 	if p.closed {
 		return ErrPoolClosed
 	}
@@ -118,7 +118,7 @@ func (p *GenericPool) Release(closer *rpc.Client) error {
 
 
 // 关闭单个资源
-func (p *GenericPool) Close(closer *rpc.Client) error {
+func (p *GenericPool) Close(closer *SignalServiceClient) error {
 	p.Lock()
 	closer.Close()
 	p.numOpen--

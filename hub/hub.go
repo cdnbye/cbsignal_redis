@@ -33,8 +33,8 @@ func GetInstance() *Hub {
 	return h
 }
 
-func GetClientNum() int {
-	return h.Clients.CountNoLock()
+func GetClientNum() int32 {
+	return int32(h.Clients.CountNoLock())
 }
 
 func GetClientNumPerMap() []int {

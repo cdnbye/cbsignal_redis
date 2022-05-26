@@ -1,19 +1,19 @@
 package pool
 
 import (
+	. "cbsignal/rpcservice/signaling"
 	"errors"
-	"net/rpc"
 )
 
 var (
-	//ErrClosed 连接池已经关闭Error
+	// ErrClosed 连接池已经关闭Error
 	ErrClosed = errors.New("pool is closed")
 )
 
 type Pool interface {
-	Acquire() (*rpc.Client, error) // 获取资源
-	Release(*rpc.Client) error     // 释放资源
-	Close(*rpc.Client) error       // 关闭资源
+	Acquire() (*SignalServiceClient, error) // 获取资源
+	Release(*SignalServiceClient) error     // 释放资源
+	Close(*SignalServiceClient) error       // 关闭资源
 	Shutdown() error             // 关闭池
 	NumTotalConn() int
 	NumIdleConn() int

@@ -30,8 +30,8 @@ func GetSelfAddr() string {
 	return nodeHub.selfAddr
 }
 
-func GetTotalNumClient() int {
-	sum := 0
+func GetTotalNumClient() int32 {
+	var sum int32 = 0
 	for _, node := range nodeHub.nodes {
 		sum += node.NumClient
 	}
