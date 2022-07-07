@@ -76,11 +76,14 @@ func DoUnregister(peerId string) bool {
 	*/
 	if h.Clients.Has(peerId) {
 		h.Clients.Remove(peerId)
-		go func() {
-			if err := redis.DelLocalPeer(peerId); err != nil {
-				log.Error("DelLocalPeer", err)
-			}
-		}()
+		//go func() {
+		//	if err := redis.DelLocalPeer(peerId); err != nil {
+		//		log.Error("DelLocalPeer", err)
+		//	}
+		//}()
+		if err := redis.DelLocalPeer(peerId); err != nil {
+			log.Error("DelLocalPeer", err)
+		}
 		return true
 	}
 	return false
