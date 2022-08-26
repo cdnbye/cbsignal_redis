@@ -5,9 +5,8 @@ import (
 	"cbsignal/client"
 	"cbsignal/handler"
 	"cbsignal/hub"
+	"cbsignal/nodes"
 	"cbsignal/redis"
-	"cbsignal/rpcservice"
-	"cbsignal/rpcservice/signaling"
 	"cbsignal/util"
 	"cbsignal/util/fastmap/cmap"
 	"cbsignal/util/ratelimit"
@@ -19,16 +18,12 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/lexkong/log"
-	"github.com/mars9/codec"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"net"
 	"net/http"
 	"sync/atomic"
 
 	_ "net/http/pprof"
-	"net/rpc"
-
 	"os"
 	"os/signal"
 	"strconv"
@@ -38,8 +33,9 @@ import (
 )
 
 const (
-	VERSION                   = "3.1.0"
+	VERSION                   = "4.0.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
+	KEEP_LIVE_INTERVAL        = 10
 	EXPIRE_LIMIT              = 12 * 60
 	REJECT_JOIN_CPU_Threshold = 800
 	REJECT_MSG_CPU_Threshold  = 850
@@ -51,7 +47,6 @@ var (
 	space   = []byte{' '}
 
 	selfIp string
-	selfPort string
 	selfAddr string
 
 	signalPort     string
@@ -108,13 +103,19 @@ func init()  {
 		fmt.Errorf("Initialize logger %s", err)
 	}
 
+	signalPort = viper.GetString("port")
+	signalPortTLS = viper.GetString("tls.port")
+	signalCertPath = viper.GetString("tls.cert")
+	signalKeyPath = viper.GetString("tls.key")
+
 	selfIp = util.GetInternalIP()
-	selfPort = viper.GetString("rpc.port")
-	if selfPort == "" {
-		panic("port for rpc is required")
+	if signalPort != "" {
+		selfAddr = fmt.Sprintf("%s:%s", selfIp, signalPort)
+	} else if signalPortTLS != "" {
+		selfAddr = fmt.Sprintf("%s:%s", selfIp, signalPortTLS)
+	} else {
+		selfAddr = fmt.Sprintf("%s", selfIp)
 	}
-	selfAddr = fmt.Sprintf("%s:%s", selfIp, selfPort)
-	signaling.Token = viper.GetString("rpc.token")
 
 	// init redis client
 	isRedisCluster := viper.GetBool("redis.is_cluster")
@@ -127,11 +128,6 @@ func init()  {
 		panic(err)
 	}
 
-	signalPort = viper.GetString("port")
-	signalPortTLS = viper.GetString("tls.port")
-	signalCertPath = viper.GetString("tls.cert")
-	signalKeyPath = viper.GetString("tls.key")
-
 	setupConfigFromViper()
 
 	//开始监听
@@ -143,7 +139,11 @@ func init()  {
 
 	hub.Init()
 
+	go hub.Consume(selfAddr)
+
 	go checkConns()
+
+	go keepAlive()
 }
 
 func main() {
@@ -198,34 +198,7 @@ func main() {
 		}()
 	}
 
-	rpcservice.NewNodeHub(selfAddr)
-	// rpcservice
-	go func() {
-
-		log.Warnf("register rpcservice service on tcp address: %s\n", selfPort)
-		listener, err := net.Listen("tcp", ":"+selfPort)
-		if err != nil {
-			log.Fatal("ListenTCP error:", err)
-		}
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				log.Fatal("Accept error:", err)
-			}
-			go func() {
-				defer conn.Close()
-				p := rpc.NewServer()
-				p.Register(&signaling.SignalService{Conn: conn})
-				p.ServeCodec(codec.NewServerCodec(conn))
-			}()
-		}
-	}()
-	time.Sleep(6*time.Second)
-
-	// 注册rpc信令服务
-	if err := signaling.RegisterSignalService(new(signaling.SignalService));err != nil {
-		panic(err)
-	}
+	nodes.NewNodeHub(selfAddr)
 
 	http.HandleFunc("/ws", wsHandler)
 	http.HandleFunc("/wss", wsHandler)
@@ -254,7 +227,6 @@ func main() {
 
 	// do cleanup
 	redisCli.Close()
-	rpcservice.ClearNodeHub()
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
@@ -413,7 +385,6 @@ func setupConfigFromViper()  {
 	maxTimeStampAge = viper.GetInt64("security.maxTimeStampAge")
 	securityToken = viper.GetString("security.token")
 	statsEnabled = viper.GetBool("stats.enable")
-	signaling.Token = viper.GetString("rpc.token")
 	handler.StatsToken = viper.GetString("stats.token")
 }
 
@@ -449,6 +420,23 @@ func checkConns()  {
 				log.Warnf("check cmap finished, closed %d clients", count)
 			}
 		}()
+	}
+}
+
+func keepAlive()  {
+	ticker := time.NewTicker(KEEP_LIVE_INTERVAL*time.Second) // same to cpu sample rate
+	defer func() {
+		ticker.Stop()
+		if err := recover(); err != nil {
+			go keepAlive()
+		}
+	}()
+
+	for range ticker.C {
+		log.Infof("start update...")
+		if err := redis.UpdateClientCount(hub.GetClientCount()); err != nil {
+			log.Error("UpdateClientCount", err)
+		}
 	}
 }
 

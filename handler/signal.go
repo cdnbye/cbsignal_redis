@@ -3,8 +3,8 @@ package handler
 import (
 	"cbsignal/client"
 	"cbsignal/hub"
+	"cbsignal/nodes"
 	"cbsignal/redis"
-	"cbsignal/rpcservice"
 	"github.com/lexkong/log"
 )
 
@@ -34,14 +34,14 @@ func (s *SignalHandler)Handle() {
 	if cli.HasNotFoundOrRejectPeer(toPeerId) {
 		return
 	}
-	signalResp := rpcservice.SignalResp{
+	signalResp := nodes.SignalResp{
 		Action: "signal",
 		FromPeerId: cli.PeerId,
 		Data: s.Msg.Data,
 	}
 	if addr, ok := cli.GetRemotePeer(toPeerId); ok {
 		//log.Infof("signal GetRemotePeer %s addr %s", toPeerId, addr)
-		node, ok := rpcservice.GetNode(addr)
+		node, ok := nodes.GetNode(addr)
 		if ok {
 			err := node.SendMsgSignal(&signalResp, toPeerId)
 			if err != nil {
@@ -61,13 +61,13 @@ func (s *SignalHandler)Handle() {
 		}
 		return
 	}
-	if addr, err := redis.GetRemotePeerRpcAddr(toPeerId); err == nil {
-		// 如果rpc节点是本节点
-		if addr == rpcservice.GetSelfAddr() {
+	if addr, err := redis.GetRemotePeerAddr(toPeerId); err == nil {
+		// 如果是本节点
+		if addr == nodes.GetSelfAddr() {
 			s.handlePeerNotFound(toPeerId)
 			return
 		}
-		node, ok := rpcservice.GetNode(addr)
+		node, ok := nodes.GetNode(addr)
 		if ok {
 			err = node.SendMsgSignal(&signalResp, toPeerId)
 			if err != nil {
@@ -94,7 +94,7 @@ func (s *SignalHandler)handlePeerNotFound(toPeerId string)  {
 	// 发送一次后，同一peerId下次不再发送，节省sysCall
 	if !s.Cli.HasNotFoundOrRejectPeer(toPeerId) {
 		s.Cli.EnqueueNotFoundOrRejectPeer(toPeerId)
-		resp := rpcservice.SignalResp{
+		resp := nodes.SignalResp{
 			Action: "signal",
 			FromPeerId: s.Msg.ToPeerId,
 		}

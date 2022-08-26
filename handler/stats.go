@@ -2,8 +2,8 @@ package handler
 
 import (
 	"cbsignal/hub"
+	"cbsignal/nodes"
 	"cbsignal/redis"
-	"cbsignal/rpcservice"
 	"cbsignal/util/cpu"
 	"fmt"
 	"net/http"
@@ -18,8 +18,8 @@ const (
 
 type SignalInfo struct {
 	Version string `json:"version"`
-	CurrentConnections int32 `json:"current_connections"`
-	TotalConnections int32 `json:"total_connections"`
+	CurrentConnections int64 `json:"current_connections"`
+	TotalConnections int64 `json:"total_connections"`
 	NumInstance int `json:"num_instance"`
 	RateLimit          int64  `json:"rate_limit,omitempty"`
 	SecurityEnabled    bool `json:"security_enabled,omitempty"`
@@ -69,13 +69,13 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 		info.NumPerMap = hub.GetClientNumPerMap()
 		if redis.IsAlive {
 			info.RedisConnected = true
-			info.CurrentConnections = hub.GetClientNum()
+			info.CurrentConnections = hub.GetClientCount()
 		} else {
 			info.RedisConnected = false
 			info.CurrentConnections = 0
 		}
-		info.TotalConnections = info.CurrentConnections + rpcservice.GetTotalNumClient()
-		info.NumInstance = rpcservice.GetNumNode() + 1
+		info.TotalConnections = info.CurrentConnections + nodes.GetTotalNumClient()
+		info.NumInstance = nodes.GetNumNode() + 1
 		info.CpuUsage = atomic.LoadInt64(&G_CPU)/10
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		resp := Resp{
@@ -115,7 +115,7 @@ func CountHandler() http.HandlerFunc {
 		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if redis.IsAlive {
-			w.Write([]byte(fmt.Sprintf("%d", hub.GetClientNum())))
+			w.Write([]byte(fmt.Sprintf("%d", hub.GetClientCount())))
 		} else {
 			w.Write([]byte(fmt.Sprintf("0")))
 		}
@@ -130,7 +130,7 @@ func TotalCountHandler() http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientNum() + rpcservice.GetTotalNumClient())))
+		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientCount() + nodes.GetTotalNumClient())))
 	}
 }
 

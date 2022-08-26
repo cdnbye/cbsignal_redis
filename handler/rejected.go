@@ -3,8 +3,8 @@ package handler
 import (
 	"cbsignal/client"
 	"cbsignal/hub"
+	"cbsignal/nodes"
 	"cbsignal/redis"
-	"cbsignal/rpcservice"
 	"github.com/lexkong/log"
 )
 
@@ -20,7 +20,7 @@ func (s *RejectHandler)Handle() {
 	if s.Cli.HasNotFoundOrRejectPeer(toPeerId) {
 		return
 	}
-	resp := rpcservice.SignalResp{
+	resp := nodes.SignalResp{
 		Action: "reject",
 		FromPeerId: s.Cli.PeerId,
 		Reason: s.Msg.Reason,
@@ -30,12 +30,12 @@ func (s *RejectHandler)Handle() {
 		s.Cli.EnqueueNotFoundOrRejectPeer(toPeerId)
 		return
 	}
-	if addr, err := redis.GetRemotePeerRpcAddr(toPeerId); err == nil {
-		// 如果rpc节点是本节点
-		if addr == rpcservice.GetSelfAddr() {
+	if addr, err := redis.GetRemotePeerAddr(toPeerId); err == nil {
+		// 如果是本节点
+		if addr == nodes.GetSelfAddr() {
 			return
 		}
-		node, ok := rpcservice.GetNode(addr)
+		node, ok := nodes.GetNode(addr)
 		if ok {
 			err = node.SendMsgSignal(&resp, toPeerId)
 			if err != nil {

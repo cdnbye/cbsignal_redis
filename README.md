@@ -9,7 +9,7 @@ make
 or directly use compiled linux file [cbsignal](https://github.com/cdnbye/cbsignal_redis/releases) .
 
 ### deploy
-Make sure you have setup redis server, then edit `config.yaml`:
+Make sure you have set up redis server, then edit `config.yaml`:
 ```yaml
 redis:
   host: REDIS_IP
@@ -58,10 +58,7 @@ Status: 200
 ```
 
 ### Cluster Mode
-RPC is used to communicate between all nodes. Specify RPC port in `config.yaml`, then start service:
-```bash
-sudo ./admin.sh start cluster config.yaml
-``` 
+Redis list is used to communicate between all nodes. You just need to add more instances to the same local network.
 
 ## Run by Docker
 The default redis address in default config is 127.0.0.1:6379
@@ -143,10 +140,7 @@ Status: 200
 ```
 
 ### 集群模式
-节点之间采用RPC进行通信，首先在 `config_cluster.yaml` 中指定 RPC 端口, 然后启动服务：
-```bash
-sudo ./admin.sh start cluster config_cluster.yaml
-``` 
+节点之间采用Redis list进行通信，只需要在同一个内网中部署更多实例即可。
 
 ## 通过Docker部署
 默认配置连接redis地址是127.0.0.1:6379

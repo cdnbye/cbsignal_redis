@@ -1,4 +1,4 @@
-package rpcservice
+package nodes
 
 import (
 	"github.com/lexkong/log"
@@ -30,8 +30,8 @@ func GetSelfAddr() string {
 	return nodeHub.selfAddr
 }
 
-func GetTotalNumClient() int32 {
-	var sum int32 = 0
+func GetTotalNumClient() int64 {
+	var sum int64 = 0
 	for _, node := range nodeHub.nodes {
 		sum += node.NumClient
 	}
@@ -51,10 +51,6 @@ func GetNumNode() int {
 func (n *NodeHub) Delete(addr string) {
 	log.Warnf("NodeHub delete %s", addr)
 	//n.mu.Lock()
-	if node, ok := n.nodes[addr]; ok {
-		node.Released = true
-		node.connPool.Shutdown()
-	}
 	delete(n.nodes, addr)
 	//n.mu.Unlock()
 }
@@ -100,9 +96,7 @@ func (n *NodeHub) GetAll() map[string]*Node {
 func (n *NodeHub) Clear() {
 	log.Infof("NodeHub clear")
 	//n.mu.Lock()
-	for _, node := range n.nodes {
-		node.connPool.Shutdown()
-	}
+
 	n.nodes = make(map[string]*Node)
 	//n.mu.Unlock()
 }

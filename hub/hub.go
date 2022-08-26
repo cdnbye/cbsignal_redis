@@ -2,12 +2,22 @@ package hub
 
 import (
 	"cbsignal/client"
+	message "cbsignal/protobuf"
 	"cbsignal/redis"
 	"cbsignal/util/fastmap/cmap"
+	"github.com/golang/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lexkong/log"
 	"sync"
+	"time"
 )
+
+const (
+	MQ_BLOCK_DURATION = 5 * time.Second
+	MQ_SLEEP_DURATION = 10 * time.Millisecond
+	MQ_GET_RANGE_LEN = 50
+)
+
 var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 	h *Hub
@@ -15,9 +25,7 @@ var (
 )
 
 type Hub struct {
-
 	Clients cmap.ConcurrentMap
-
 }
 
 func Init() {
@@ -33,8 +41,8 @@ func GetInstance() *Hub {
 	return h
 }
 
-func GetClientNum() int32 {
-	return int32(h.Clients.CountNoLock())
+func GetClientCount() int64 {
+	return int64(h.Clients.CountNoLock())
 }
 
 func GetClientNumPerMap() []int {
@@ -107,6 +115,53 @@ func SendJsonToClient(target *client.Client, value interface{}) (error, bool) {
 
 func ClearAll()  {
 	h.Clients.Clear()
+}
+
+func Consume(addr string)  {
+	for {
+		b, err := redis.BlockPopMQ(MQ_BLOCK_DURATION, addr)
+		if err != nil {
+			if err != redis.ERR_REDIS_NIL {
+				log.Errorf(err, "BlockPopMQ %s", addr)
+			}
+			continue
+		}
+		sendMessageToLocalPeer(b)
+		tryConsumeRange(addr)
+	}
+}
+
+func tryConsumeRange(addr string) {
+	arr, err := redis.PopRangeMQ(addr, MQ_GET_RANGE_LEN)
+	if err != nil {
+		log.Errorf(err, "PopRangeMQ %s", addr)
+		return
+	}
+	if len(arr) == 0 {
+		return
+	}
+	for _, item := range arr {
+		sendMessageToLocalPeer([]byte(item))
+	}
+	tryConsumeRange(addr)
+}
+
+func sendMessageToLocalPeer(raw []byte) {
+	var data message.SignalReq
+	if err := proto.Unmarshal(raw, &data); err != nil {
+		log.Errorf(err, "json.Unmarshal")
+		return
+	}
+	cli, ok := GetClient(data.ToPeerId)
+	if ok {
+		log.Infof("local peer %s found", data.ToPeerId)
+		if err, _ := cli.SendMessage(data.Data); err != nil {
+			log.Warnf("from remote send signal to peer %s error %s", data.ToPeerId, err)
+			if ok := DoUnregister(cli.PeerId); ok {
+				cli.Close()
+			}
+		}
+	}
 }
 
 

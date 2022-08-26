@@ -3,8 +3,8 @@ package handler
 import (
 	"cbsignal/client"
 	"cbsignal/hub"
+	"cbsignal/nodes"
 	"cbsignal/redis"
-	"cbsignal/rpcservice"
 	"github.com/lexkong/log"
 )
 
@@ -17,7 +17,7 @@ func (s *HeartbeatHandler)Handle() {
 	log.Infof("receive heartbeat from %s", s.Cli.PeerId)
 	s.Cli.UpdateTs()
 
-	resp := rpcservice.SignalResp{
+	resp := nodes.SignalResp{
 		Action: "pong",
 	}
 	hub.SendJsonToClient(s.Cli, resp)

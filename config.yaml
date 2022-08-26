@@ -15,10 +15,6 @@ tls:
   cert: cert/signaler.pem
   key: cert/signaler.key
 
-rpc:
-  port: 52019
-  token:                       # rpc通讯的鉴权token，必须保持一致 The authentication token of RPC, which must be consistent
-
 redis:
   host: 127.0.0.1
   port: 6379
