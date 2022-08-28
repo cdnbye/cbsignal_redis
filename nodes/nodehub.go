@@ -3,6 +3,11 @@ package nodes
 import (
 	"github.com/lexkong/log"
 	"sync"
+	"time"
+)
+
+const (
+	CONSUME_INTERVAL   = 35 * time.Millisecond
 )
 
 type NodeHub struct {
@@ -19,7 +24,25 @@ func NewNodeHub(selfAddr string) *NodeHub {
 		selfAddr: selfAddr,
 	}
 	nodeHub = &n
+
+	go n.Produce()
+
 	return &n
+}
+
+func (n *NodeHub)Produce() {
+	ticker := time.NewTicker(CONSUME_INTERVAL) // same to cpu sample rate
+	defer func() {
+		ticker.Stop()
+		if err := recover(); err != nil {
+			go n.Produce()
+		}
+	}()
+	for range ticker.C {
+		for _, s := range n.nodes {
+			s.sendBatchReq()
+		}
+	}
 }
 
 func GetNode(addr string) (*Node, bool) {

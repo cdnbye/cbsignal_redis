@@ -14,8 +14,8 @@ import (
 
 const (
 	MQ_BLOCK_DURATION = 5 * time.Second
-	MQ_SLEEP_DURATION = 10 * time.Millisecond
-	MQ_GET_RANGE_LEN = 50
+	MQ_GET_RANGE_LEN = 300
+	CONSUME_THREADS = 10
 )
 
 var (
@@ -28,12 +28,17 @@ type Hub struct {
 	Clients cmap.ConcurrentMap
 }
 
-func Init() {
+func Init(addr string) {
 	once.Do(func() {
 		h = &Hub{
 			Clients: cmap.NewCMap(),
 			//Clients: smap.NewSMap(),
 		}
+
+		for i:=0; i<CONSUME_THREADS; i++ {
+			go Consume(addr)
+		}
+
 	})
 }
 
@@ -126,8 +131,8 @@ func Consume(addr string)  {
 			}
 			continue
 		}
-		sendMessageToLocalPeer(b)
-		tryConsumeRange(addr)
+		go sendMessageToLocalPeer(b)
+		//tryConsumeRange(addr)
 	}
 }
 
@@ -140,28 +145,33 @@ func tryConsumeRange(addr string) {
 	if len(arr) == 0 {
 		return
 	}
-	for _, item := range arr {
-		sendMessageToLocalPeer([]byte(item))
-	}
+	go func() {
+		for _, item := range arr {
+			sendMessageToLocalPeer([]byte(item))
+		}
+	}()
 	tryConsumeRange(addr)
 }
 
 func sendMessageToLocalPeer(raw []byte) {
-	var data message.SignalReq
+	var data message.SignalBatchReq
 	if err := proto.Unmarshal(raw, &data); err != nil {
 		log.Errorf(err, "json.Unmarshal")
 		return
 	}
-	cli, ok := GetClient(data.ToPeerId)
-	if ok {
-		log.Infof("local peer %s found", data.ToPeerId)
-		if err, _ := cli.SendMessage(data.Data); err != nil {
-			log.Warnf("from remote send signal to peer %s error %s", data.ToPeerId, err)
-			if ok := DoUnregister(cli.PeerId); ok {
-				cli.Close()
+	for _, item := range data.Items {
+		cli, ok := GetClient(item.ToPeerId)
+		if ok {
+			log.Infof("local peer %s found", item.ToPeerId)
+			if err, _ := cli.SendMessage(item.Data); err != nil {
+				log.Warnf("from remote send signal to peer %s error %s", item.ToPeerId, err)
+				if ok := DoUnregister(cli.PeerId); ok {
+					cli.Close()
+				}
 			}
 		}
 	}
+
 }
 
 

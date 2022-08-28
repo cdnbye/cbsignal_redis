@@ -17,10 +17,11 @@ var (
 )
 
 const (
-	PING_INTERVAL      = 10
-	PING_MAX_RETRYS    = 3
-	MQ_MAX_LEN         = 500
-	MQ_LEN_AFTER_TRIM  = 200
+	PING_INTERVAL      = 7
+	PING_MAX_RETRYS    = 2
+	MQ_MAX_LEN         = 800
+	MQ_LEN_AFTER_TRIM  = 500
+	MAX_PIPE_LEN       = 50
 )
 
 type Node struct {
@@ -30,6 +31,7 @@ type Node struct {
 	NumClient        int64
 	pingRetrys       int
 	IsDead           bool
+	pipe             chan *message.SignalReq
 }
 
 type SignalResp struct {
@@ -42,6 +44,7 @@ type SignalResp struct {
 func NewNode(addr string) (*Node, error) {
 	node := Node{
 		addr: addr,
+		pipe: make(chan *message.SignalReq, 1000),
 	}
 
 	node.isAlive = true
@@ -70,13 +73,41 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 		Data:     b,
 	}
 
-	raw, err := proto.Marshal(req)
+	s.pipe <- req
+
+	if len(s.pipe) > MAX_PIPE_LEN {
+		log.Warnf("pipe len %d reset ticker", len(s.pipe))
+		s.sendBatchReq()
+	}
+
+	return nil
+}
+
+func (s *Node)sendBatchReq()  {
+	var items []*message.SignalReq
+	l := len(s.pipe)
+	items = make([]*message.SignalReq, 0, l)
+	for i:=0;i<l;i++ {
+		m := <- s.pipe
+		//log.Infof("append signal from %s", m.ToPeerId)
+		items = append(items, m)
+	}
+	//fmt.Printf("after size is %d\n", len(pipe))
+	if len(items) == 0 {
+		return
+	}
+	batchReq := &message.SignalBatchReq{
+		Items: items,
+	}
+	raw, err := proto.Marshal(batchReq)
 	if err != nil {
-		return err
+		log.Error("proto.Marshal", err)
+		return
 	}
 	length, err := redis.PushMsgToMQ(s.addr, raw)
 	if err != nil {
-		return err
+		log.Error("PushMsgToMQ", err)
+		return
 	}
 	if length > MQ_MAX_LEN {
 		log.Warnf("before trim %s, len %d", s.addr, length)
@@ -88,7 +119,6 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 			log.Warnf("trim %s done, current len %d", s.addr, curLength)
 		}
 	}
-	return nil
 }
 
 func (s *Node) StartHeartbeat() {
@@ -98,26 +128,30 @@ func (s *Node) StartHeartbeat() {
 				s.IsDead = true
 				break
 			}
+			time.Sleep(PING_INTERVAL * time.Second)
 			if count, err := redis.GetNodeClientCount(s.addr); err != nil {
 				log.Errorf(err, "node heartbeat %s", s.addr)
 				s.Lock()
-				s.isAlive = false
+				if s.isAlive {
+					s.isAlive = false
+					// 清空队列
+					if length, err := redis.GetLenMQ(s.addr); err != nil {
+						log.Error("GetLenMQ", err)
+					} else if length > 0 {
+						redis.ClearMQ(s.addr)
+					}
+				}
 				s.pingRetrys ++
 				s.Unlock()
-				// 清空队列
-				if length, err := redis.GetLenMQ(s.addr); err != nil {
-					log.Error("GetLenMQ", err)
-				} else if length > 0 {
-					redis.ClearMQ(s.addr)
-				}
 			} else {
 				s.Lock()
-				s.isAlive = true
+				if !s.isAlive {
+					s.isAlive = true
+				}
 				s.pingRetrys = 0
 				s.NumClient = count
 				s.Unlock()
 			}
-			time.Sleep(PING_INTERVAL * time.Second)
 		}
 	}()
 }

@@ -35,7 +35,7 @@ import (
 const (
 	VERSION                   = "4.0.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
-	KEEP_LIVE_INTERVAL        = 10
+	KEEP_LIVE_INTERVAL        = 7
 	EXPIRE_LIMIT              = 12 * 60
 	REJECT_JOIN_CPU_Threshold = 800
 	REJECT_MSG_CPU_Threshold  = 850
@@ -137,9 +137,9 @@ func init()  {
 		setupConfigFromViper()
 	})
 
-	hub.Init()
+	hub.Init(selfAddr)
 
-	go hub.Consume(selfAddr)
+	//go hub.Consume(selfAddr)
 
 	go checkConns()
 
@@ -341,7 +341,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				// ping
 				if m.OpCode.IsControl() {
 					if m.OpCode == ws.OpClose {
-						conn.Close()    // TODO 验证
+						conn.Close()
 						return
 					}
 					c.UpdateTs()

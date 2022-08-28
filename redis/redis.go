@@ -38,7 +38,7 @@ func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password 
 				Addr:        redisAddr,
 				Password:    password,
 				DB:          db, // use default DB
-				PoolSize:    150,                          // Maximum number of socket connections.
+				PoolSize:    80,                          // Maximum number of socket connections.
 				PoolTimeout: time.Millisecond * 500,       // mount of time client waits for connection if all connections are busy before returning an error.
 				ReadTimeout: time.Millisecond * 500,       //
 			})
@@ -116,11 +116,11 @@ func PopRangeMQ(addr string, len int64) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c[0].(*redis.StringSliceCmd).Result()         // TODO 验证
+	return c[0].(*redis.StringSliceCmd).Result()
 }
 
 func UpdateClientCount(count int64) error {
-	return RedisCli.Set(genKeyForStats(_rpcAddr), count, 60 * time.Second).Err()
+	return RedisCli.Set(genKeyForStats(_rpcAddr), count, 30 * time.Second).Err()
 }
 
 func GetNodeClientCount(addr string) (int64, error) {
