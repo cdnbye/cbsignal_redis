@@ -40,7 +40,7 @@ func (n *NodeHub)Produce() {
 	}()
 	for range ticker.C {
 		for _, s := range n.nodes {
-			s.sendBatchReq()
+			go s.sendBatchReq()
 		}
 	}
 }

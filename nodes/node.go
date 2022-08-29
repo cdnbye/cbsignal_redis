@@ -76,7 +76,7 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 	s.pipe <- req
 
 	if len(s.pipe) > MAX_PIPE_LEN {
-		log.Warnf("pipe len %d reset ticker", len(s.pipe))
+		log.Warnf("pipe len %d, pump", len(s.pipe))
 		s.sendBatchReq()
 	}
 
