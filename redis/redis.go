@@ -14,6 +14,7 @@ type RedisClient interface {
 
 const (
 	PEER_EXPIRE_DUTATION = 10*time.Minute
+	CLIENT_ALIVE_EXPIRE_DUTATION = 20*time.Second
 	BREAK_DURATION = 2*time.Second
     ERR_REDIS_NIL = redis.Nil
 )
@@ -120,7 +121,7 @@ func PopRangeMQ(addr string, len int64) ([]string, error) {
 }
 
 func UpdateClientCount(count int64) error {
-	return RedisCli.Set(genKeyForStats(_rpcAddr), count, 30 * time.Second).Err()
+	return RedisCli.Set(genKeyForStats(_rpcAddr), count, CLIENT_ALIVE_EXPIRE_DUTATION).Err()
 }
 
 func GetNodeClientCount(addr string) (int64, error) {

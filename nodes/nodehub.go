@@ -3,11 +3,6 @@ package nodes
 import (
 	"github.com/lexkong/log"
 	"sync"
-	"time"
-)
-
-const (
-	CONSUME_INTERVAL   = 35 * time.Millisecond
 )
 
 type NodeHub struct {
@@ -25,24 +20,7 @@ func NewNodeHub(selfAddr string) *NodeHub {
 	}
 	nodeHub = &n
 
-	go n.Produce()
-
 	return &n
-}
-
-func (n *NodeHub)Produce() {
-	ticker := time.NewTicker(CONSUME_INTERVAL) // same to cpu sample rate
-	defer func() {
-		ticker.Stop()
-		if err := recover(); err != nil {
-			go n.Produce()
-		}
-	}()
-	for range ticker.C {
-		for _, s := range n.nodes {
-			go s.sendBatchReq()
-		}
-	}
 }
 
 func GetNode(addr string) (*Node, bool) {
@@ -71,10 +49,11 @@ func GetNumNode() int {
 	return sum
 }
 
-func (n *NodeHub) Delete(addr string) {
-	log.Warnf("NodeHub delete %s", addr)
+func (n *NodeHub) Delete(node *Node) {
 	//n.mu.Lock()
-	delete(n.nodes, addr)
+	node.Destroy()
+	log.Warnf("NodeHub delete %s", node.Addr())
+	delete(n.nodes, node.Addr())
 	//n.mu.Unlock()
 }
 
@@ -104,7 +83,7 @@ func (n *NodeHub) Get(addr string) (*Node, bool) {
 		node.StartHeartbeat()
 	} else {
 		if node.IsDead {
-			n.Delete(addr)
+			n.Delete(node)
 			return nil, false
 		}
 	}

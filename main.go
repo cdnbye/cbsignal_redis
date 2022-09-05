@@ -100,7 +100,7 @@ func init()  {
 		LogBackupCount: viper.GetInt("log.log_backup_count"),
 	}
 	if err := log.InitWithConfig(&passLagerCfg); err != nil {
-		fmt.Errorf("Initialize logger %s", err)
+		fmt.Printf("Initialize logger %s\n", err)
 	}
 
 	signalPort = viper.GetString("port")

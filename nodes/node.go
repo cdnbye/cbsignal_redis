@@ -21,7 +21,8 @@ const (
 	PING_MAX_RETRYS    = 2
 	MQ_MAX_LEN         = 800
 	MQ_LEN_AFTER_TRIM  = 500
-	MAX_PIPE_LEN       = 50
+	MAX_PIPE_LEN       = 35
+	CONSUME_INTERVAL   = 50 * time.Millisecond
 )
 
 type Node struct {
@@ -31,7 +32,7 @@ type Node struct {
 	NumClient        int64
 	pingRetrys       int
 	IsDead           bool
-	pipe             chan *message.SignalReq
+	aggregator       *Aggregator
 }
 
 type SignalResp struct {
@@ -44,16 +45,43 @@ type SignalResp struct {
 func NewNode(addr string) (*Node, error) {
 	node := Node{
 		addr: addr,
-		pipe: make(chan *message.SignalReq, 1000),
 	}
 
 	node.isAlive = true
+
+	batchProcess := func(items []*message.SignalReq) error {
+		if len(items) == 0 {
+			return nil
+		}
+		//log.Infof("send %d items", len(items))
+		return node.sendBatchReq(items)
+	}
+
+	errorHandler := func(err error, items []*message.SignalReq, batchProcessFunc BatchProcessFunc, aggregator *Aggregator) {
+		log.Errorf(err,"Receive error, item size is %d", len(items))
+		node.sendBatchReq(items)
+	}
+
+	node.aggregator = NewAggregator(batchProcess, func(option AggregatorOption) AggregatorOption {
+		option.BatchSize = MAX_PIPE_LEN
+		option.Workers = 1
+		option.ChannelBufferSize = MAX_PIPE_LEN + 10
+		option.LingerTime = CONSUME_INTERVAL
+		option.ErrorHandler = errorHandler
+		return option
+	})
+
+	node.aggregator.Start()
 
 	return &node, nil
 }
 
 func (s *Node) Addr() string {
 	return s.addr
+}
+
+func(s *Node) Destroy() {
+	s.aggregator.SafeStop()
 }
 
 func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
@@ -73,41 +101,22 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 		Data:     b,
 	}
 
-	s.pipe <- req
-
-	if len(s.pipe) > MAX_PIPE_LEN {
-		log.Warnf("pipe len %d, pump", len(s.pipe))
-		s.sendBatchReq()
-	}
+	s.aggregator.TryEnqueue(req)
 
 	return nil
 }
 
-func (s *Node)sendBatchReq()  {
-	var items []*message.SignalReq
-	l := len(s.pipe)
-	items = make([]*message.SignalReq, 0, l)
-	for i:=0;i<l;i++ {
-		m := <- s.pipe
-		//log.Infof("append signal from %s", m.ToPeerId)
-		items = append(items, m)
-	}
-	//fmt.Printf("after size is %d\n", len(pipe))
-	if len(items) == 0 {
-		return
-	}
+func (s *Node)sendBatchReq(items []*message.SignalReq) error {
 	batchReq := &message.SignalBatchReq{
 		Items: items,
 	}
 	raw, err := proto.Marshal(batchReq)
 	if err != nil {
-		log.Error("proto.Marshal", err)
-		return
+		return err
 	}
 	length, err := redis.PushMsgToMQ(s.addr, raw)
 	if err != nil {
-		log.Error("PushMsgToMQ", err)
-		return
+		return err
 	}
 	if length > MQ_MAX_LEN {
 		log.Warnf("before trim %s, len %d", s.addr, length)
@@ -119,6 +128,7 @@ func (s *Node)sendBatchReq()  {
 			log.Warnf("trim %s done, current len %d", s.addr, curLength)
 		}
 	}
+	return nil
 }
 
 func (s *Node) StartHeartbeat() {

@@ -123,6 +123,12 @@ func ClearAll()  {
 }
 
 func Consume(addr string)  {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warnf("Work failed with %s in %v", err)
+			Consume(addr)
+		}
+	}()
 	for {
 		b, err := redis.BlockPopMQ(MQ_BLOCK_DURATION, addr)
 		if err != nil {
