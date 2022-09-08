@@ -17,7 +17,7 @@ func (s *RejectHandler)Handle() {
 	//h := hub.GetInstance()
 	//判断节点是否还在线
 	toPeerId := s.Msg.ToPeerId
-	if s.Cli.HasNotFoundOrRejectPeer(toPeerId) {
+	if s.Cli.HasBlacklistPeer(toPeerId) {
 		return
 	}
 	resp := nodes.SignalResp{
@@ -27,7 +27,7 @@ func (s *RejectHandler)Handle() {
 	}
 	if target, ok := hub.GetClient(toPeerId); ok {
 		hub.SendJsonToClient(target, resp)
-		s.Cli.EnqueueNotFoundOrRejectPeer(toPeerId)
+		s.Cli.EnqueueBlacklistPeer(toPeerId)
 		return
 	}
 	if addr, err := redis.GetRemotePeerAddr(toPeerId); err == nil {
@@ -42,7 +42,7 @@ func (s *RejectHandler)Handle() {
 				log.Warnf("SendMsgSignal to remote failed " + err.Error())
 				return
 			}
-			s.Cli.EnqueueNotFoundOrRejectPeer(toPeerId)
+			s.Cli.EnqueueBlacklistPeer(toPeerId)
 		} else {
 			log.Warnf("node %s not found", addr)
 		}

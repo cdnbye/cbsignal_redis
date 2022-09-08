@@ -31,25 +31,13 @@ func (s *SignalHandler)Handle() {
 	 发送peer not found
 	 */
 	toPeerId := s.Msg.ToPeerId
-	if cli.HasNotFoundOrRejectPeer(toPeerId) {
+	if cli.HasBlacklistPeer(toPeerId) {
 		return
 	}
 	signalResp := nodes.SignalResp{
 		Action: "signal",
 		FromPeerId: cli.PeerId,
 		Data: s.Msg.Data,
-	}
-	if addr, ok := cli.GetRemotePeer(toPeerId); ok {
-		//log.Infof("signal GetRemotePeer %s addr %s", toPeerId, addr)
-		node, ok := nodes.GetNode(addr)
-		if ok {
-			err := node.SendMsgSignal(&signalResp, toPeerId)
-			if err != nil {
-				log.Warnf("SendMsgSignal to remote node %s failed " + err.Error(), node.Addr())
-				s.handlePeerNotFound(toPeerId)
-			}
-		}
-		return
 	}
 	if target, ok := hub.GetClient(toPeerId); ok {
 		//log.Infof("SendJsonToClient %s", toPeerId)
@@ -79,7 +67,6 @@ func (s *SignalHandler)Handle() {
 			log.Warnf("node %s not found", addr)
 			s.handlePeerNotFound(toPeerId)
 		}
-		cli.EnqueueRemotePeer(toPeerId, addr)
 		return
 	} else {
 		log.Info(err.Error())
@@ -90,10 +77,9 @@ func (s *SignalHandler)Handle() {
 }
 
 func (s *SignalHandler)handlePeerNotFound(toPeerId string)  {
-	//hub.SendJsonToClient(s.Cli.PeerId, resp)
 	// 发送一次后，同一peerId下次不再发送，节省sysCall
-	if !s.Cli.HasNotFoundOrRejectPeer(toPeerId) {
-		s.Cli.EnqueueNotFoundOrRejectPeer(toPeerId)
+	if !s.Cli.HasBlacklistPeer(toPeerId) {
+		s.Cli.EnqueueBlacklistPeer(toPeerId)
 		resp := nodes.SignalResp{
 			Action: "signal",
 			FromPeerId: s.Msg.ToPeerId,

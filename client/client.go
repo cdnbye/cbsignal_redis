@@ -6,12 +6,12 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lexkong/log"
 	"net"
+	"sync"
 	"time"
 )
 
 const (
-	MAX_NOT_FOUND_PEERS_LIMIT = 6
-	MAX_REMOTE_PEERS_LIMIT = 3
+	BLACKLIST_PEERS_LIMIT = 6
 )
 
 var (
@@ -26,9 +26,9 @@ type Client struct {
 
 	Timestamp int64
 
-	NotFoundPeers     []string   // 记录没有找到的peer的队列
-
-	RemotePeers []RemotePeer
+	blacklist     []string
+	blacklistPos  int
+	mu sync.Mutex
 }
 
 type SignalCloseResp struct {
@@ -43,18 +43,12 @@ type SignalVerResp struct {
 	Ver int                    `json:"ver"`
 }
 
-type RemotePeer struct {
-	Id string
-	Addr string
-}
-
 func NewPeerClient(peerId string, conn net.Conn) *Client {
 	return &Client{
-		Conn:        conn,
-		PeerId:      peerId,
-		Timestamp:   time.Now().Unix(),
-		NotFoundPeers: make([]string, 0, MAX_NOT_FOUND_PEERS_LIMIT+1),
-		RemotePeers: make([]RemotePeer, 0, MAX_REMOTE_PEERS_LIMIT+1),
+		Conn:          conn,
+		PeerId:        peerId,
+		Timestamp:     time.Now().Unix(),
+		blacklist:     make([]string, BLACKLIST_PEERS_LIMIT),
 	}
 }
 
@@ -123,47 +117,21 @@ func (c *Client)Close() error {
 	return c.Conn.Close()
 }
 
-func (c *Client)EnqueueNotFoundOrRejectPeer(id string) {
-	c.NotFoundPeers = append(c.NotFoundPeers, id)
-	if len(c.NotFoundPeers) > MAX_NOT_FOUND_PEERS_LIMIT {
-		c.NotFoundPeers = c.NotFoundPeers[1:(MAX_NOT_FOUND_PEERS_LIMIT+1)]
+func (c *Client) EnqueueBlacklistPeer(id string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.blacklist[c.blacklistPos] = id
+	c.blacklistPos ++
+	if c.blacklistPos >= BLACKLIST_PEERS_LIMIT {
+		c.blacklistPos = 0
 	}
 }
 
-func (c *Client)HasNotFoundOrRejectPeer(id string) bool {
-	//for _, v := range c.NotFoundPeers {
-	//	if id == v {
-	//		return true
-	//	}
-	//}
-	//return false
-	for i := len(c.NotFoundPeers)-1; i >= 0; i-- {
-		if id == c.NotFoundPeers[i] {
+func (c *Client) HasBlacklistPeer(id string) bool {
+	for _, v := range c.blacklist {
+		if id == v {
 			return true
 		}
 	}
 	return false
-}
-
-func (c *Client)EnqueueRemotePeer(id string, addr string) {
-	c.RemotePeers = append(c.RemotePeers, RemotePeer{Id: id, Addr: addr})
-	if len(c.RemotePeers) > MAX_REMOTE_PEERS_LIMIT {
-		c.RemotePeers = c.RemotePeers[1:(MAX_REMOTE_PEERS_LIMIT+1)]
-	}
-}
-
-func (c *Client)GetRemotePeer(id string) (string, bool) {
-	//for _, v := range c.RemotePeers {
-	//	if id == v.Id {
-	//		return v.Addr, true
-	//	}
-	//}
-	//return "", false
-	for i := len(c.RemotePeers)-1; i >= 0; i-- {
-		peer := c.RemotePeers[i]
-		if id == peer.Id {
-			return peer.Addr, true
-		}
-	}
-	return "", false
 }

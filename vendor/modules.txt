@@ -1,5 +1,11 @@
 # github.com/StackExchange/wmi v1.2.1
 github.com/StackExchange/wmi
+# github.com/VictoriaMetrics/fastcache v1.10.0
+## explicit
+# github.com/allegro/bigcache/v3 v3.0.2
+## explicit
+github.com/allegro/bigcache/v3
+github.com/allegro/bigcache/v3/queue
 # github.com/fsnotify/fsnotify v1.4.7
 ## explicit
 github.com/fsnotify/fsnotify
@@ -54,8 +60,6 @@ github.com/lexkong/log/lager/color
 github.com/magiconair/properties
 # github.com/mars9/codec v0.0.0-20160208102151-49676af5c6e0
 ## explicit
-github.com/mars9/codec
-github.com/mars9/codec/wirepb
 # github.com/mitchellh/mapstructure v1.1.2
 github.com/mitchellh/mapstructure
 # github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421
@@ -98,8 +102,7 @@ github.com/zhangyunhao116/skipmap
 # github.com/zhangyunhao116/wyhash v0.3.2
 github.com/zhangyunhao116/wyhash
 github.com/zhangyunhao116/wyhash/internal/unalign
-# golang.org/x/sys v0.0.0-20210816074244-15123e1e1f71
-## explicit
+# golang.org/x/sys v0.0.0-20220405052023-b1e9470b6e64
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows

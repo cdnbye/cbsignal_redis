@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	VERSION                   = "4.0.0"
+	VERSION                   = "4.1.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	KEEP_LIVE_INTERVAL        = 7
 	EXPIRE_LIMIT              = 12 * 60

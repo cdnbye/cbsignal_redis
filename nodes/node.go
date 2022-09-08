@@ -22,7 +22,7 @@ const (
 	MQ_MAX_LEN         = 800
 	MQ_LEN_AFTER_TRIM  = 500
 	MAX_PIPE_LEN       = 35
-	CONSUME_INTERVAL   = 50 * time.Millisecond
+	CONSUME_INTERVAL   = 40 * time.Millisecond
 )
 
 type Node struct {

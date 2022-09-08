@@ -2,6 +2,7 @@ package redis
 
 import (
 	"errors"
+	"github.com/allegro/bigcache/v3"
 	"github.com/go-redis/redis"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ var (
 	_rpcAddr string
 	IsAlive  = true
 	once     sync.Once
+	cache    *bigcache.BigCache
 )
 
 func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password string, db int) RedisClient {
@@ -39,10 +41,34 @@ func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password 
 				Addr:        redisAddr,
 				Password:    password,
 				DB:          db, // use default DB
-				PoolSize:    80,                          // Maximum number of socket connections.
+				PoolSize:    100,                          // Maximum number of socket connections.
 				PoolTimeout: time.Millisecond * 500,       // mount of time client waits for connection if all connections are busy before returning an error.
 				ReadTimeout: time.Millisecond * 500,       //
 			})
+		}
+
+		cacheConfig := bigcache.Config {
+			Shards: 256,
+			LifeWindow: 10 * time.Minute,
+			CleanWindow: 5 * time.Minute,
+
+			// rps * lifeWindow, used only in initial memory allocation
+			MaxEntriesInWindow: 1000 * 10 * 60,
+
+			// max entry size in bytes, used only in initial memory allocation
+			MaxEntrySize: 500,
+
+			Verbose: false,
+
+			// cache will not allocate more memory than this limit, value in MB
+			// if value is reached then the oldest entries can be overridden for the new ones
+			// 0 value means no size limit
+			HardMaxCacheSize: 10,
+		}
+		var err error
+		cache, err = bigcache.NewBigCache(cacheConfig)
+		if err != nil {
+			panic(err)
 		}
 	})
 	return RedisCli
@@ -50,7 +76,15 @@ func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password 
 
 func GetRemotePeerAddr(peerId string) (string, error) {
 	//fmt.Println("redis GetRemotePeerAddr peerId " + peerId)
-	return RedisCli.Get(genKeyForPeerId(peerId)).Result()
+	v, err := cache.Get(peerId)
+	if err != nil {
+		addr, err := RedisCli.Get(genKeyForPeerId(peerId)).Result()
+		if err == nil {
+			_ = cache.Set(peerId, []byte(addr))
+		}
+		return addr, err
+	}
+	return string(v), nil
 }
 
 func SetLocalPeer(peerId string) error {

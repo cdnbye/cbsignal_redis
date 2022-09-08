@@ -14,8 +14,7 @@ import (
 
 const (
 	MQ_BLOCK_DURATION = 5 * time.Second
-	MQ_GET_RANGE_LEN = 300
-	CONSUME_THREADS = 10
+	CONSUME_THREADS = 15
 )
 
 var (
@@ -138,25 +137,7 @@ func Consume(addr string)  {
 			continue
 		}
 		go sendMessageToLocalPeer(b)
-		//tryConsumeRange(addr)
 	}
-}
-
-func tryConsumeRange(addr string) {
-	arr, err := redis.PopRangeMQ(addr, MQ_GET_RANGE_LEN)
-	if err != nil {
-		log.Errorf(err, "PopRangeMQ %s", addr)
-		return
-	}
-	if len(arr) == 0 {
-		return
-	}
-	go func() {
-		for _, item := range arr {
-			sendMessageToLocalPeer([]byte(item))
-		}
-	}()
-	tryConsumeRange(addr)
 }
 
 func sendMessageToLocalPeer(raw []byte) {
