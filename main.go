@@ -33,12 +33,12 @@ import (
 )
 
 const (
-	VERSION                   = "4.1.0"
+	VERSION                   = "4.1.1"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	KEEP_LIVE_INTERVAL        = 7
 	EXPIRE_LIMIT              = 12 * 60
-	REJECT_JOIN_CPU_Threshold = 800
-	REJECT_MSG_CPU_Threshold  = 850
+	REJECT_JOIN_CPU_Threshold = 770
+	REJECT_MSG_CPU_Threshold  = 820
 )
 
 var (
@@ -433,9 +433,11 @@ func keepAlive()  {
 	}()
 
 	for range ticker.C {
-		log.Infof("start update...")
-		if err := redis.UpdateClientCount(hub.GetClientCount()); err != nil {
-			log.Error("UpdateClientCount", err)
+		if redis.IsAlive {
+			log.Infof("start update...")
+			if err := redis.UpdateClientCount(hub.GetClientCount()); err != nil {
+				log.Error("UpdateClientCount", err)
+			}
 		}
 	}
 }

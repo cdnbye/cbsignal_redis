@@ -19,7 +19,7 @@ var (
 const (
 	PING_INTERVAL      = 7
 	PING_MAX_RETRYS    = 2
-	MQ_MAX_LEN         = 800
+	MQ_MAX_LEN         = 1000
 	MQ_LEN_AFTER_TRIM  = 500
 	MAX_PIPE_LEN       = 35
 	CONSUME_INTERVAL   = 40 * time.Millisecond

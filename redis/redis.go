@@ -48,15 +48,15 @@ func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password 
 		}
 
 		cacheConfig := bigcache.Config {
-			Shards: 256,
+			Shards: 128,
 			LifeWindow: 10 * time.Minute,
 			CleanWindow: 5 * time.Minute,
 
 			// rps * lifeWindow, used only in initial memory allocation
-			MaxEntriesInWindow: 1000 * 10 * 60,
+			MaxEntriesInWindow: 1000 * 10 * 35,
 
 			// max entry size in bytes, used only in initial memory allocation
-			MaxEntrySize: 500,
+			MaxEntrySize: 20,
 
 			Verbose: false,
 

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	BLACKLIST_PEERS_LIMIT = 6
+	BLACKLIST_PEERS_LIMIT = 4
 )
 
 var (

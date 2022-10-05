@@ -14,7 +14,7 @@ import (
 
 const (
 	MQ_BLOCK_DURATION = 5 * time.Second
-	CONSUME_THREADS = 15
+	CONSUME_THREADS = 18
 )
 
 var (
