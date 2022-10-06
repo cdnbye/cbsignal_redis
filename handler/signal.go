@@ -24,12 +24,6 @@ func (s *SignalHandler)Handle() {
 		return
 	}
 
-	/*
-	 判断对等端是不是本地的，如果是的话获取节点发送
-	 判断是否在RemotePeers缓存，是的话获取rpc addr发送
-	 判断是否redis有，是的话获取rpc addr发送
-	 发送peer not found
-	 */
 	toPeerId := s.Msg.ToPeerId
 	if cli.HasBlacklistPeer(toPeerId) {
 		return

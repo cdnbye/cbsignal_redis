@@ -22,15 +22,15 @@ const (
 
 var (
 	RedisCli RedisClient
-	_rpcAddr string
+	SelfAddr string
 	IsAlive  = true
 	once     sync.Once
 	cache    *bigcache.BigCache
 )
 
-func InitRedisClient(isCluster bool, rpcAddr string, redisAddr string, password string, db int) RedisClient {
+func InitRedisClient(isCluster bool, selfAddr string, redisAddr string, password string, db int) RedisClient {
 	once.Do(func() {
-		_rpcAddr = rpcAddr
+		SelfAddr = selfAddr
 		if isCluster {
 			RedisCli = redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:    []string{redisAddr},
@@ -91,8 +91,8 @@ func SetLocalPeer(peerId string) error {
 	if !IsAlive {
 		return errors.New("redis is not alive")
 	}
-	//fmt.Printf("SetLocalPeer peerId %s _rpcAddr %s\n", peerId, _rpcAddr)
-	err := RedisCli.Set(genKeyForPeerId(peerId), _rpcAddr, PEER_EXPIRE_DUTATION).Err()
+	//fmt.Printf("SetLocalPeer peerId %s SelfAddr %s\n", peerId, SelfAddr)
+	err := RedisCli.Set(genKeyForPeerId(peerId), SelfAddr, PEER_EXPIRE_DUTATION).Err()
 	if err != nil {
 		takeABreak()
 	}
@@ -155,7 +155,7 @@ func PopRangeMQ(addr string, len int64) ([]string, error) {
 }
 
 func UpdateClientCount(count int64) error {
-	return RedisCli.Set(genKeyForStats(_rpcAddr), count, CLIENT_ALIVE_EXPIRE_DUTATION).Err()
+	return RedisCli.Set(genKeyForStats(SelfAddr), count, CLIENT_ALIVE_EXPIRE_DUTATION).Err()
 }
 
 func GetNodeClientCount(addr string) (int64, error) {
