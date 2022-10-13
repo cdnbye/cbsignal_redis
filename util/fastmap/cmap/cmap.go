@@ -2,7 +2,7 @@ package cmap
 
 import (
 	"cbsignal/client"
-	"encoding/json"
+	"github.com/json-iterator/go"
 	"sync"
 )
 
@@ -356,7 +356,7 @@ func (m ConcurrentMap) MarshalJSON() ([]byte, error) {
 	for item := range m.IterBuffered() {
 		tmp[item.Key] = item.Val
 	}
-	return json.Marshal(tmp)
+	return jsoniter.Marshal(tmp)
 }
 
 func fnv32(key string) uint32 {

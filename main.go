@@ -9,6 +9,7 @@ import (
 	"cbsignal/redis"
 	"cbsignal/util"
 	"cbsignal/util/fastmap/cmap"
+	"cbsignal/util/log"
 	"cbsignal/util/ratelimit"
 	"crypto/hmac"
 	"crypto/md5"
@@ -17,7 +18,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"github.com/lexkong/log"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"net/http"
@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	VERSION                   = "4.1.2"
+	VERSION                   = "4.2.1"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	KEEP_LIVE_INTERVAL        = 7
 	EXPIRE_LIMIT              = 12 * 60
@@ -42,11 +42,11 @@ const (
 )
 
 var (
-	cfg = pflag.StringP("config", "c", "", "Config file path.")
+	cfg     = pflag.StringP("config", "c", "", "Config file path.")
 	newline = []byte{'\n'}
 	space   = []byte{' '}
 
-	selfIp string
+	selfIp   string
 	selfAddr string
 
 	signalPort     string
@@ -61,14 +61,14 @@ var (
 	limiter      *ratelimit.Bucket
 
 	securityEnabled bool
-	statsEnabled bool
+	statsEnabled    bool
 	maxTimeStampAge int64
-	securityToken string
+	securityToken   string
 
 	redisCli redis.RedisClient
 )
 
-func init()  {
+func init() {
 	pflag.Parse()
 
 	versionNum = util.GetVersionNum(VERSION)
@@ -80,8 +80,8 @@ func init()  {
 		viper.AddConfigPath("./") // 如果没有指定配置文件，则解析默认的配置文件
 		viper.SetConfigName("config")
 	}
-	viper.SetConfigType("yaml")     // 设置配置文件格式为YAML
-	viper.AutomaticEnv()            // 读取匹配的环境变量
+	viper.SetConfigType("yaml") // 设置配置文件格式为YAML
+	viper.AutomaticEnv()        // 读取匹配的环境变量
 	replacer := strings.NewReplacer(".", "_")
 	viper.SetEnvKeyReplacer(replacer)
 	if err := viper.ReadInConfig(); err != nil { // viper解析配置文件
@@ -89,19 +89,13 @@ func init()  {
 	}
 
 	// Initialize logger
-	passLagerCfg := log.PassLagerCfg{
-		Writers:        viper.GetString("log.writers"),
-		LoggerLevel:    viper.GetString("log.logger_level"),
-		LoggerFile:     viper.GetString("log.logger_dir"),
-		LogFormatText:  viper.GetBool("log.log_format_text"),
-		RollingPolicy:  viper.GetString("log.rollingPolicy"),
-		LogRotateDate:  viper.GetInt("log.log_rotate_date"),
-		LogRotateSize:  viper.GetInt("log.log_rotate_size"),
-		LogBackupCount: viper.GetInt("log.log_backup_count"),
-	}
-	if err := log.InitWithConfig(&passLagerCfg); err != nil {
-		fmt.Printf("Initialize logger %s\n", err)
-	}
+	log.InitLogger(viper.GetString("log.writers"),
+		viper.GetString("log.logger_level"),
+		viper.GetBool("log.log_format_text"),
+		viper.GetString("log.logger_dir"),
+		viper.GetInt("log.log_rotate_size"),
+		viper.GetInt("log.log_backup_count"),
+		viper.GetInt("log.log_max_age"))
 
 	signalPort = viper.GetString("port")
 	signalPortTLS = viper.GetString("tls.port")
@@ -164,7 +158,7 @@ func main() {
 
 	// rate limit
 	if limitEnabled {
-		log.Warnf("Init ratelimit with rate %d", limitRate)
+		log.Warnf("Init ratelimit with rate %d version %s", limitRate, VERSION)
 		limiter = ratelimit.NewBucketWithQuantum(time.Second, limitRate, limitRate)
 	}
 
@@ -188,7 +182,7 @@ func main() {
 		}()
 	}
 
-	if  signalPortTLS != "" && util.Exists(signalCertPath) && util.Exists(signalKeyPath) {
+	if signalPortTLS != "" && util.Exists(signalCertPath) && util.Exists(signalKeyPath) {
 		go func() {
 			log.Warnf("Start to listening the incoming requests on https address: %s\n", signalPortTLS)
 			err := http.ListenAndServeTLS(":"+signalPortTLS, signalCertPath, signalKeyPath, nil)
@@ -210,7 +204,7 @@ func main() {
 		http.HandleFunc("/version", handler.VersionHandler(VERSION))
 
 		info := handler.SignalInfo{
-			Version:            VERSION,
+			Version:         VERSION,
 			SecurityEnabled: securityEnabled,
 		}
 		if limitEnabled {
@@ -223,10 +217,11 @@ func main() {
 
 	<-intrChan
 
-	log.Info("Shutting down server...")
+	log.Warn("Shutting down server...")
 
 	// do cleanup
 	redisCli.Close()
+	log.Sync()
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
@@ -235,6 +230,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	cpuUsage := atomic.LoadInt64(&handler.G_CPU)
 	if cpuUsage > REJECT_JOIN_CPU_Threshold {
 		log.Warnf("peer join reach cpu %d", cpuUsage)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	if !redis.IsAlive {
+		log.Warnf("peer join redis not alive")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
@@ -294,8 +294,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		} else {
 			now := time.Now().Unix()
-			if ts < now - maxTimeStampAge || ts > now + maxTimeStampAge  {
-				log.Warnf("ts expired for %d origin %s", now - ts, r.Header.Get("Origin"))
+			if ts < now-maxTimeStampAge || ts > now+maxTimeStampAge {
+				log.Warnf("ts expired for %d origin %s", now-ts, r.Header.Get("Origin"))
 				closeInvalidConn(c)
 				return
 			}
@@ -358,6 +358,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					log.Warnf("handle msg reach cpu %d", cpuUsage)
 					break
 				}
+				if !redis.IsAlive {
+					log.Warnf("handle msg redis not alive")
+					break
+				}
 
 				data := bytes.TrimSpace(bytes.Replace(m.Payload, newline, space, -1))
 				hdr, err := handler.NewHandler(data, c)
@@ -373,12 +377,12 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
-func closeInvalidConn(cli *client.Client)  {
+func closeInvalidConn(cli *client.Client) {
 	cli.SendMsgClose("invalid client")
 	cli.Close()
 }
 
-func setupConfigFromViper()  {
+func setupConfigFromViper() {
 	limitEnabled = viper.GetBool("ratelimit.enable")
 	limitRate = viper.GetInt64("ratelimit.max_rate")
 	securityEnabled = viper.GetBool("security.enable")
@@ -388,8 +392,8 @@ func setupConfigFromViper()  {
 	handler.StatsToken = viper.GetString("stats.token")
 }
 
-func checkConns()  {
-	ticker := time.NewTicker(CHECK_CLIENT_INTERVAL*time.Second) // same to cpu sample rate
+func checkConns() {
+	ticker := time.NewTicker(CHECK_CLIENT_INTERVAL * time.Second) // same to cpu sample rate
 	defer func() {
 		ticker.Stop()
 		if err := recover(); err != nil {
@@ -410,7 +414,7 @@ func checkConns()  {
 						//log.Warnf("client %s is expired for %d, close it", cli.PeerId, now-cli.Timestamp)
 						if ok := hub.DoUnregister(cli.PeerId); ok {
 							cli.Close()
-							count ++
+							count++
 						}
 					}
 				}
@@ -423,8 +427,8 @@ func checkConns()  {
 	}
 }
 
-func keepAlive()  {
-	ticker := time.NewTicker(KEEP_LIVE_INTERVAL*time.Second) // same to cpu sample rate
+func keepAlive() {
+	ticker := time.NewTicker(KEEP_LIVE_INTERVAL * time.Second) // same to cpu sample rate
 	defer func() {
 		ticker.Stop()
 		if err := recover(); err != nil {
@@ -441,5 +445,3 @@ func keepAlive()  {
 		}
 	}
 }
-
-

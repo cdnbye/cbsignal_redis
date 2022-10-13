@@ -5,15 +5,15 @@ import (
 	"cbsignal/hub"
 	"cbsignal/nodes"
 	"cbsignal/redis"
-	"github.com/lexkong/log"
+	"cbsignal/util/log"
 )
 
 type SignalHandler struct {
-	Msg   *SignalMsg
-	Cli   *client.Client
+	Msg *SignalMsg
+	Cli *client.Client
 }
 
-func (s *SignalHandler)Handle() {
+func (s *SignalHandler) Handle() {
 	//h := hub.GetInstance()
 	//log.Infof("load client Msg %v", s.Msg)
 
@@ -29,9 +29,9 @@ func (s *SignalHandler)Handle() {
 		return
 	}
 	signalResp := nodes.SignalResp{
-		Action: "signal",
+		Action:     "signal",
 		FromPeerId: cli.PeerId,
-		Data: s.Msg.Data,
+		Data:       s.Msg.Data,
 	}
 	if target, ok := hub.GetClient(toPeerId); ok {
 		//log.Infof("SendJsonToClient %s", toPeerId)
@@ -70,16 +70,14 @@ func (s *SignalHandler)Handle() {
 	s.handlePeerNotFound(toPeerId)
 }
 
-func (s *SignalHandler)handlePeerNotFound(toPeerId string)  {
+func (s *SignalHandler) handlePeerNotFound(toPeerId string) {
 	// 发送一次后，同一peerId下次不再发送，节省sysCall
 	if !s.Cli.HasBlacklistPeer(toPeerId) {
 		s.Cli.EnqueueBlacklistPeer(toPeerId)
 		resp := nodes.SignalResp{
-			Action: "signal",
+			Action:     "signal",
 			FromPeerId: s.Msg.ToPeerId,
 		}
 		hub.SendJsonToClient(s.Cli, resp)
 	}
 }
-
-

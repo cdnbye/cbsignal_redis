@@ -5,15 +5,15 @@ import (
 	"cbsignal/hub"
 	"cbsignal/nodes"
 	"cbsignal/redis"
-	"github.com/lexkong/log"
+	"cbsignal/util/log"
 )
 
 type RejectHandler struct {
-	Msg   *SignalMsg
-	Cli   *client.Client
+	Msg *SignalMsg
+	Cli *client.Client
 }
 
-func (s *RejectHandler)Handle() {
+func (s *RejectHandler) Handle() {
 	//h := hub.GetInstance()
 	//判断节点是否还在线
 	toPeerId := s.Msg.ToPeerId
@@ -21,9 +21,9 @@ func (s *RejectHandler)Handle() {
 		return
 	}
 	resp := nodes.SignalResp{
-		Action: "reject",
+		Action:     "reject",
 		FromPeerId: s.Cli.PeerId,
-		Reason: s.Msg.Reason,
+		Reason:     s.Msg.Reason,
 	}
 	if target, ok := hub.GetClient(toPeerId); ok {
 		hub.SendJsonToClient(target, resp)

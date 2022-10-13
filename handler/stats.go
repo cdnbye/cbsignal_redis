@@ -6,6 +6,7 @@ import (
 	"cbsignal/redis"
 	"cbsignal/util/cpu"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"net/http"
 	"runtime"
 	"sync/atomic"
@@ -82,9 +83,9 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 			Ret:  0,
 			Data: &info,
 		}
-		b, err := json.MarshalIndent(resp, "", "   ")
+		b, err := jsoniter.MarshalIndent(resp, "", "   ")
 		if err != nil {
-			resp, _ := json.Marshal(Resp{
+			resp, _ := jsoniter.Marshal(Resp{
 				Ret:  -1,
 				Data: nil,
 			})

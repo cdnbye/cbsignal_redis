@@ -5,21 +5,20 @@ import (
 	message "cbsignal/protobuf"
 	"cbsignal/redis"
 	"cbsignal/util/fastmap/cmap"
+	"cbsignal/util/log"
 	"github.com/golang/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/lexkong/log"
 	"sync"
 	"time"
 )
 
 const (
 	MQ_BLOCK_DURATION = 5 * time.Second
-	CONSUME_THREADS = 18
+	CONSUME_THREADS   = 18
 )
 
 var (
-	json = jsoniter.ConfigCompatibleWithStandardLibrary
-	h *Hub
+	h    *Hub
 	once sync.Once
 )
 
@@ -34,7 +33,7 @@ func Init(addr string) {
 			//Clients: smap.NewSMap(),
 		}
 
-		for i:=0; i<CONSUME_THREADS; i++ {
+		for i := 0; i < CONSUME_THREADS; i++ {
 			go Consume(addr)
 		}
 
@@ -61,7 +60,7 @@ func DoRegister(client *client.Client) {
 	*/
 	h.Clients.Set(client.PeerId, client)
 	if err := redis.SetLocalPeer(client.PeerId); err != nil {
-		log.Error("SetLocalPeer", err)
+		log.Error(err)
 	}
 }
 
@@ -94,7 +93,7 @@ func DoUnregister(peerId string) bool {
 		//	}
 		//}()
 		if err := redis.DelLocalPeer(peerId); err != nil {
-			log.Error("DelLocalPeer", err)
+			log.Error(err)
 		}
 		return true
 	}
@@ -104,24 +103,24 @@ func DoUnregister(peerId string) bool {
 // send json object to a client with peerId
 func SendJsonToClient(target *client.Client, value interface{}) (error, bool) {
 
-	b, err := json.Marshal(value)
+	b, err := jsoniter.Marshal(value)
 	if err != nil {
-		log.Error("json.Marshal", err)
+		log.Error(err)
 		return err, false
 	}
-	defer func() {                            // 必须要先声明defer，否则不能捕获到panic异常
+	defer func() { // 必须要先声明defer，否则不能捕获到panic异常
 		if err := recover(); err != nil {
-			log.Warnf(err.(string))                  // 这里的err其实就是panic传入的内容
+			log.Warnf(err.(string)) // 这里的err其实就是panic传入的内容
 		}
 	}()
 	return target.SendMessage(b)
 }
 
-func ClearAll()  {
+func ClearAll() {
 	h.Clients.Clear()
 }
 
-func Consume(addr string)  {
+func Consume(addr string) {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Warnf("Work failed with %s in %v", err)
@@ -132,7 +131,7 @@ func Consume(addr string)  {
 		b, err := redis.BlockPopMQ(MQ_BLOCK_DURATION, addr)
 		if err != nil {
 			if err != redis.ERR_REDIS_NIL {
-				log.Errorf(err, "BlockPopMQ %s", addr)
+				log.Errorf("BlockPopMQ %s err %s", addr, err)
 			}
 			continue
 		}
@@ -143,7 +142,7 @@ func Consume(addr string)  {
 func sendMessageToLocalPeer(raw []byte) {
 	var data message.SignalBatchReq
 	if err := proto.Unmarshal(raw, &data); err != nil {
-		log.Errorf(err, "json.Unmarshal")
+		log.Error(err)
 		return
 	}
 	for _, item := range data.Items {
@@ -160,7 +159,3 @@ func sendMessageToLocalPeer(raw []byte) {
 	}
 
 }
-
-
-
-

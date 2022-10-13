@@ -2,11 +2,7 @@ package handler
 
 import (
 	"cbsignal/client"
-	jsoniter "github.com/json-iterator/go"
-)
-
-var (
-    json = jsoniter.ConfigCompatibleWithStandardLibrary
+	"github.com/json-iterator/go"
 )
 
 type Handler interface {
@@ -23,7 +19,7 @@ type SignalMsg struct {
 func NewHandler(message []byte, cli *client.Client) (Handler, error) {
 
 	signal := SignalMsg{}
-	if err := json.Unmarshal(message, &signal); err != nil {
+	if err := jsoniter.Unmarshal(message, &signal); err != nil {
 		//log.Println(err)
 		return nil, err
 	}

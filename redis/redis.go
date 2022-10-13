@@ -53,7 +53,7 @@ func InitRedisClient(isCluster bool, selfAddr string, redisAddr string, password
 			CleanWindow: 5 * time.Minute,
 
 			// rps * lifeWindow, used only in initial memory allocation
-			MaxEntriesInWindow: 1000 * 10 * 35,
+			MaxEntriesInWindow: 1000 * 10 * 40,
 
 			// max entry size in bytes, used only in initial memory allocation
 			MaxEntrySize: 20,
@@ -63,7 +63,7 @@ func InitRedisClient(isCluster bool, selfAddr string, redisAddr string, password
 			// cache will not allocate more memory than this limit, value in MB
 			// if value is reached then the oldest entries can be overridden for the new ones
 			// 0 value means no size limit
-			HardMaxCacheSize: 10,
+			HardMaxCacheSize: 15,
 		}
 		var err error
 		cache, err = bigcache.NewBigCache(cacheConfig)

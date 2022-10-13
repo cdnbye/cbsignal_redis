@@ -1,13 +1,13 @@
 package nodes
 
 import (
-	"github.com/lexkong/log"
+	"cbsignal/util/log"
 	"sync"
 )
 
 type NodeHub struct {
-	nodes map[string]*Node
-	mu   sync.Mutex
+	nodes    map[string]*Node
+	mu       sync.Mutex
 	selfAddr string
 }
 
@@ -15,7 +15,7 @@ var nodeHub *NodeHub
 
 func NewNodeHub(selfAddr string) *NodeHub {
 	n := NodeHub{
-		nodes: make(map[string]*Node),
+		nodes:    make(map[string]*Node),
 		selfAddr: selfAddr,
 	}
 	nodeHub = &n
@@ -75,7 +75,7 @@ func (n *NodeHub) Get(addr string) (*Node, bool) {
 		log.Infof("New Node %s", addr)
 		node, err = NewNode(addr)
 		if err != nil {
-			log.Error("NewNode", err)
+			log.Error(err)
 			return nil, false
 		}
 		ok = true
@@ -96,7 +96,7 @@ func (n *NodeHub) GetAll() map[string]*Node {
 }
 
 func (n *NodeHub) Clear() {
-	log.Infof("NodeHub clear")
+	log.Info("NodeHub clear")
 	//n.mu.Lock()
 
 	n.nodes = make(map[string]*Node)
@@ -106,4 +106,3 @@ func (n *NodeHub) Clear() {
 func ClearNodeHub() {
 	nodeHub.Clear()
 }
-

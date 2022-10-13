@@ -3,43 +3,39 @@ package nodes
 import (
 	message "cbsignal/protobuf"
 	"cbsignal/redis"
+	"cbsignal/util/log"
 	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/lexkong/log"
+	"github.com/json-iterator/go"
 	"sync"
 	"time"
 )
 
-var (
-	json = jsoniter.ConfigCompatibleWithStandardLibrary
-)
-
 const (
-	PING_INTERVAL      = 7
-	PING_MAX_RETRYS    = 2
-	MQ_MAX_LEN         = 1000
-	MQ_LEN_AFTER_TRIM  = 500
-	MAX_PIPE_LEN       = 35
-	CONSUME_INTERVAL   = 40 * time.Millisecond
+	PING_INTERVAL     = 7
+	PING_MAX_RETRYS   = 2
+	MQ_MAX_LEN        = 1000
+	MQ_LEN_AFTER_TRIM = 500
+	MAX_PIPE_LEN      = 50
+	CONSUME_INTERVAL  = 60 * time.Millisecond
 )
 
 type Node struct {
 	sync.Mutex
-	addr             string // ip:port
-	isAlive          bool // 是否存活
-	NumClient        int64
-	pingRetrys       int
-	IsDead           bool
-	aggregator       *Aggregator
+	addr       string // ip:port
+	isAlive    bool   // 是否存活
+	NumClient  int64
+	pingRetrys int
+	IsDead     bool
+	aggregator *Aggregator
 }
 
 type SignalResp struct {
-	Action string              `json:"action"`
-	FromPeerId string          `json:"from_peer_id,omitempty"`
-	Data interface{}           `json:"data,omitempty"`
-	Reason string              `json:"reason,omitempty"`
+	Action     string      `json:"action"`
+	FromPeerId string      `json:"from_peer_id,omitempty"`
+	Data       interface{} `json:"data,omitempty"`
+	Reason     string      `json:"reason,omitempty"`
 }
 
 func NewNode(addr string) (*Node, error) {
@@ -58,7 +54,7 @@ func NewNode(addr string) (*Node, error) {
 	}
 
 	errorHandler := func(err error, items []*message.SignalReq, batchProcessFunc BatchProcessFunc, aggregator *Aggregator) {
-		log.Errorf(err,"Receive error, item size is %d", len(items))
+		log.Errorf("Receive error, item size is %d err %s", len(items), err)
 		node.sendBatchReq(items)
 	}
 
@@ -80,7 +76,7 @@ func (s *Node) Addr() string {
 	return s.addr
 }
 
-func(s *Node) Destroy() {
+func (s *Node) Destroy() {
 	s.aggregator.SafeStop()
 }
 
@@ -91,7 +87,7 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 		return errors.New(fmt.Sprintf("node %s is not alive when send signal", s.Addr()))
 	}
 
-	b, err := json.Marshal(signalResp)
+	b, err := jsoniter.Marshal(signalResp)
 	if err != nil {
 		return err
 	}
@@ -106,7 +102,7 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 	return nil
 }
 
-func (s *Node)sendBatchReq(items []*message.SignalReq) error {
+func (s *Node) sendBatchReq(items []*message.SignalReq) error {
 	batchReq := &message.SignalBatchReq{
 		Items: items,
 	}
@@ -122,7 +118,7 @@ func (s *Node)sendBatchReq(items []*message.SignalReq) error {
 		log.Warnf("before trim %s, len %d", s.addr, length)
 		err := redis.TrimMQ(s.addr, MQ_LEN_AFTER_TRIM)
 		if err != nil {
-			log.Error("TrimMQ", err)
+			log.Error(err)
 		} else {
 			curLength, _ := redis.GetLenMQ(s.addr)
 			log.Warnf("trim %s done, current len %d", s.addr, curLength)
@@ -140,18 +136,18 @@ func (s *Node) StartHeartbeat() {
 			}
 			time.Sleep(PING_INTERVAL * time.Second)
 			if count, err := redis.GetNodeClientCount(s.addr); err != nil {
-				log.Errorf(err, "node heartbeat %s", s.addr)
+				log.Errorf("node heartbeat %s err %s", s.addr, err)
 				s.Lock()
 				if s.isAlive {
 					s.isAlive = false
 					// 清空队列
 					if length, err := redis.GetLenMQ(s.addr); err != nil {
-						log.Error("GetLenMQ", err)
+						log.Error("GetLenMQ %s", err)
 					} else if length > 0 {
 						redis.ClearMQ(s.addr)
 					}
 				}
-				s.pingRetrys ++
+				s.pingRetrys++
 				s.Unlock()
 			} else {
 				s.Lock()
