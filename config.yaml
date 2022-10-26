@@ -5,8 +5,8 @@ log:
   logger_dir: log/signal.log   # 日志文件目录
   log_format_text: true        # 日志的输出格式，JSON 或者 plaintext，true 会输出成非 JSON 格式，false 会输出成 JSON 格式
   log_rotate_size: 1           # rotate 转存大小，配合 rollingPolicy: size 使用
-  log_backup_count: 7          # 当日志文件达到转存标准时，log 系统会将该日志文件进行压缩备份，这里指定了备份文件的最大个数
-  log_max_age: 30              # 日志文件保留的最大天数
+  log_backup_count: 50          # 当日志文件达到转存标准时，log 系统会将该日志文件进行压缩备份，这里指定了备份文件的最大个数
+  log_max_age: 7              # 日志文件保留的最大天数
 
 port: 80
 tls:

@@ -6,7 +6,7 @@ import (
 	"cbsignal/redis"
 	"cbsignal/util/cpu"
 	"fmt"
-	jsoniter "github.com/json-iterator/go"
+	"github.com/bytedance/sonic"
 	"net/http"
 	"runtime"
 	"sync/atomic"
@@ -18,25 +18,25 @@ const (
 )
 
 type SignalInfo struct {
-	Version string `json:"version"`
-	CurrentConnections int64 `json:"current_connections"`
-	TotalConnections int64 `json:"total_connections"`
-	NumInstance int `json:"num_instance"`
+	Version            string `json:"version"`
+	CurrentConnections int64  `json:"current_connections"`
+	TotalConnections   int64  `json:"total_connections"`
+	NumInstance        int    `json:"num_instance"`
 	RateLimit          int64  `json:"rate_limit,omitempty"`
-	SecurityEnabled    bool `json:"security_enabled,omitempty"`
-	NumGoroutine       int  `json:"num_goroutine"`
-	NumPerMap          []int `json:"num_per_map"`
+	SecurityEnabled    bool   `json:"security_enabled,omitempty"`
+	NumGoroutine       int    `json:"num_goroutine"`
+	NumPerMap          []int  `json:"num_per_map"`
 	CpuUsage           int64  `json:"cpu_usage"`
-	RedisConnected     bool  `json:"redis_connected"`
+	RedisConnected     bool   `json:"redis_connected"`
 }
 
 type Resp struct {
-	Ret int `json:"ret"`
+	Ret  int         `json:"ret"`
 	Data *SignalInfo `json:"data"`
 }
 
 var (
-	G_CPU  int64
+	G_CPU      int64
 	decay      = 0.7
 	StatsToken string
 )
@@ -49,7 +49,7 @@ func init() {
 
 func HealthCheck() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cpuUsage := atomic.LoadInt64(&G_CPU)/10
+		cpuUsage := atomic.LoadInt64(&G_CPU) / 10
 		if cpuUsage >= HEALTH_CHECK_CPU_LIMIT {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			w.Write([]byte(fmt.Sprintf("service overloaded, cpu %d", cpuUsage)))
@@ -77,15 +77,15 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 		}
 		info.TotalConnections = info.CurrentConnections + nodes.GetTotalNumClient()
 		info.NumInstance = nodes.GetNumNode() + 1
-		info.CpuUsage = atomic.LoadInt64(&G_CPU)/10
+		info.CpuUsage = atomic.LoadInt64(&G_CPU) / 10
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		resp := Resp{
 			Ret:  0,
 			Data: &info,
 		}
-		b, err := jsoniter.MarshalIndent(resp, "", "   ")
+		b, err := sonic.ConfigDefault.MarshalIndent(resp, "", "   ")
 		if err != nil {
-			resp, _ := jsoniter.Marshal(Resp{
+			resp, _ := sonic.Marshal(Resp{
 				Ret:  -1,
 				Data: nil,
 			})
@@ -131,7 +131,7 @@ func TotalCountHandler() http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientCount() + nodes.GetTotalNumClient())))
+		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientCount()+nodes.GetTotalNumClient())))
 	}
 }
 

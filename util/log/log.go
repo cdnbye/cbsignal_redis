@@ -114,12 +114,16 @@ func getEncoder(textFormat bool) zapcore.Encoder {
 
 // 将日志写到 test.log 文件中
 func getFileWriter(filePath string, rotateSize, backupCount, maxAge int) zapcore.WriteSyncer {
+	if maxAge == 0 {
+		maxAge = 7
+	}
 	lumberJackLogger := &lumberjack.Logger{
 		Filename:   filePath,    // 日志文件的位置
 		MaxSize:    rotateSize,  // 以 MB 为单位
 		MaxBackups: backupCount, // 在进行切割之前，日志文件的最大大小（以MB为单位）
 		MaxAge:     maxAge,      // 保留旧文件的最大天数
 		Compress:   false,       // 是否压缩/归档旧文件
+		LocalTime:  true,
 	}
 	return zapcore.AddSync(lumberJackLogger)
 }

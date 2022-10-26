@@ -2,7 +2,7 @@ package handler
 
 import (
 	"cbsignal/client"
-	"github.com/json-iterator/go"
+	"github.com/bytedance/sonic"
 )
 
 type Handler interface {
@@ -13,13 +13,12 @@ type SignalMsg struct {
 	Action   string      `json:"action"`
 	ToPeerId string      `json:"to_peer_id"`
 	Data     interface{} `json:"data"`
-	Reason string      `json:"reason"`
+	Reason   string      `json:"reason"`
 }
 
 func NewHandler(message []byte, cli *client.Client) (Handler, error) {
-
 	signal := SignalMsg{}
-	if err := jsoniter.Unmarshal(message, &signal); err != nil {
+	if err := sonic.Unmarshal(message, &signal); err != nil {
 		//log.Println(err)
 		return nil, err
 	}

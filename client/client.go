@@ -2,9 +2,9 @@ package client
 
 import (
 	"cbsignal/util/log"
+	"github.com/bytedance/sonic"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"github.com/json-iterator/go"
 	"net"
 	"sync"
 	"time"
@@ -60,7 +60,7 @@ func (c *Client) SendMsgClose(reason string) error {
 		Action: "close",
 		Reason: reason,
 	}
-	b, err := jsoniter.Marshal(resp)
+	b, err := sonic.Marshal(resp)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -74,7 +74,7 @@ func (c *Client) SendMsgVersion(version int) error {
 		Action: "ver",
 		Ver:    version,
 	}
-	b, err := jsoniter.Marshal(resp)
+	b, err := sonic.Marshal(resp)
 	if err != nil {
 		log.Error(err)
 		return err

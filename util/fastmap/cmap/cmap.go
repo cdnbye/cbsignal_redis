@@ -2,7 +2,7 @@ package cmap
 
 import (
 	"cbsignal/client"
-	"github.com/json-iterator/go"
+	"github.com/bytedance/sonic"
 	"sync"
 )
 
@@ -356,7 +356,7 @@ func (m ConcurrentMap) MarshalJSON() ([]byte, error) {
 	for item := range m.IterBuffered() {
 		tmp[item.Key] = item.Val
 	}
-	return jsoniter.Marshal(tmp)
+	return sonic.Marshal(tmp)
 }
 
 func fnv32(key string) uint32 {

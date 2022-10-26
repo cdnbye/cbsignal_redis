@@ -6,8 +6,8 @@ import (
 	"cbsignal/redis"
 	"cbsignal/util/fastmap/cmap"
 	"cbsignal/util/log"
+	"github.com/bytedance/sonic"
 	"github.com/golang/protobuf/proto"
-	jsoniter "github.com/json-iterator/go"
 	"sync"
 	"time"
 )
@@ -103,7 +103,7 @@ func DoUnregister(peerId string) bool {
 // send json object to a client with peerId
 func SendJsonToClient(target *client.Client, value interface{}) (error, bool) {
 
-	b, err := jsoniter.Marshal(value)
+	b, err := sonic.Marshal(value)
 	if err != nil {
 		log.Error(err)
 		return err, false

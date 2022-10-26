@@ -6,8 +6,8 @@ import (
 	"cbsignal/util/log"
 	"errors"
 	"fmt"
+	"github.com/bytedance/sonic"
 	"github.com/golang/protobuf/proto"
-	"github.com/json-iterator/go"
 	"sync"
 	"time"
 )
@@ -17,8 +17,8 @@ const (
 	PING_MAX_RETRYS   = 2
 	MQ_MAX_LEN        = 1000
 	MQ_LEN_AFTER_TRIM = 500
-	MAX_PIPE_LEN      = 50
-	CONSUME_INTERVAL  = 60 * time.Millisecond
+	MAX_PIPE_LEN      = 60
+	CONSUME_INTERVAL  = 70 * time.Millisecond
 )
 
 type Node struct {
@@ -87,7 +87,7 @@ func (s *Node) SendMsgSignal(signalResp *SignalResp, toPeerId string) error {
 		return errors.New(fmt.Sprintf("node %s is not alive when send signal", s.Addr()))
 	}
 
-	b, err := jsoniter.Marshal(signalResp)
+	b, err := sonic.Marshal(signalResp)
 	if err != nil {
 		return err
 	}
