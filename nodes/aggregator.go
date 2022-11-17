@@ -28,9 +28,9 @@ type AggregatorOption struct {
 	BatchSize         int
 	Workers           int
 	ChannelBufferSize int
-	LingerTime   time.Duration
-	ErrorHandler ErrorHandlerFunc
-	Logger       Logger
+	LingerTime        time.Duration
+	ErrorHandler      ErrorHandlerFunc
+	Logger            Logger
 }
 
 // the func to batch process items
@@ -99,8 +99,7 @@ func (agt *Aggregator) Enqueue(item *message.SignalReq) {
 // Start the aggregator
 func (agt *Aggregator) Start() {
 	for i := 0; i < agt.option.Workers; i++ {
-		index := i
-		go agt.work(index)
+		go agt.work(i)
 	}
 }
 
@@ -167,14 +166,14 @@ loop:
 			if !lingerTimer.Stop() {
 				<-lingerTimer.C
 			}
-			batch = make([]*message.SignalReq, 0, agt.option.BatchSize)
+			batch = batch[0:0]
 		case <-lingerTimer.C:
 			if len(batch) == 0 {
 				break
 			}
 
 			agt.batchProcess(batch)
-			batch = make([]*message.SignalReq, 0, agt.option.BatchSize)
+			batch = batch[0:0]
 		case <-agt.quit:
 			if len(batch) != 0 {
 				agt.batchProcess(batch)

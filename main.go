@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	VERSION                   = "4.3.0"
+	VERSION                   = "4.3.2"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	KEEP_LIVE_INTERVAL        = 7
 	EXPIRE_LIMIT              = 12 * 60
@@ -113,10 +113,28 @@ func init() {
 
 	// init redis client
 	isRedisCluster := viper.GetBool("redis.is_cluster")
-	redisAddr := fmt.Sprintf("%s:%s", viper.GetString("redis.host"), viper.GetString("redis.port"))
 	redisPsw := viper.GetString("redis.password")
-	redisDB := viper.GetInt("redis.dbname")
-	redisCli = redis.InitRedisClient(isRedisCluster, selfAddr, redisAddr, redisPsw, redisDB)
+	if isRedisCluster {
+		var redisAddrs []*redis.Addr
+		err := viper.UnmarshalKey("redis.cluster", &redisAddrs)
+		if err != nil {
+			panic(err)
+		}
+		if len(redisAddrs) == 0 {
+			redisAddrs = append(redisAddrs, &redis.Addr{
+				Host: viper.GetString("redis.host"),
+				Port: viper.GetString("redis.port"),
+			})
+		}
+		redisCli = redis.InitRedisCluster(selfAddr, redisAddrs, redisPsw)
+	} else {
+		redisAddr := &redis.Addr{
+			Host: viper.GetString("redis.host"),
+			Port: viper.GetString("redis.port"),
+		}
+		redisDB := viper.GetInt("redis.dbname")
+		redisCli = redis.InitRedisClient(selfAddr, redisAddr.String(), redisPsw, redisDB)
+	}
 	_, err := redisCli.Ping().Result()
 	if err != nil {
 		panic(err)

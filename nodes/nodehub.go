@@ -15,7 +15,7 @@ var nodeHub *NodeHub
 
 func NewNodeHub(selfAddr string) *NodeHub {
 	n := NodeHub{
-		nodes:    make(map[string]*Node),
+		nodes:    make(map[string]*Node, 20),
 		selfAddr: selfAddr,
 	}
 	nodeHub = &n
@@ -99,7 +99,7 @@ func (n *NodeHub) Clear() {
 	log.Info("NodeHub clear")
 	//n.mu.Lock()
 
-	n.nodes = make(map[string]*Node)
+	n.nodes = make(map[string]*Node, 20)
 	//n.mu.Unlock()
 }
 

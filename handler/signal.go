@@ -25,7 +25,10 @@ func (s *SignalHandler) Handle() {
 	}
 
 	toPeerId := s.Msg.ToPeerId
-	if cli.HasBlacklistPeer(toPeerId) {
+	//if cli.HasBlacklistPeer(toPeerId) {
+	//	return
+	//}
+	if redis.IsNotFoundPeer(toPeerId) {
 		return
 	}
 	signalResp := nodes.SignalResp{
@@ -72,12 +75,18 @@ func (s *SignalHandler) Handle() {
 
 func (s *SignalHandler) handlePeerNotFound(toPeerId string) {
 	// 发送一次后，同一peerId下次不再发送，节省sysCall
-	if !s.Cli.HasBlacklistPeer(toPeerId) {
-		s.Cli.EnqueueBlacklistPeer(toPeerId)
-		resp := nodes.SignalResp{
-			Action:     "signal",
-			FromPeerId: s.Msg.ToPeerId,
-		}
-		hub.SendJsonToClient(s.Cli, resp)
+	//if !s.Cli.HasBlacklistPeer(toPeerId) {
+	//	s.Cli.EnqueueBlacklistPeer(toPeerId)
+	//	resp := nodes.SignalResp{
+	//		Action:     "signal",
+	//		FromPeerId: s.Msg.ToPeerId,
+	//	}
+	//	hub.SendJsonToClient(s.Cli, resp)
+	//}
+	redis.SetNotFoundPeer(toPeerId)
+	resp := nodes.SignalResp{
+		Action:     "signal",
+		FromPeerId: s.Msg.ToPeerId,
 	}
+	hub.SendJsonToClient(s.Cli, resp)
 }
