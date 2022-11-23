@@ -5,12 +5,11 @@ import (
 )
 
 type ExceptionHandler struct {
-
-	Msg      *SignalMsg
-	Cli   *client.Client
+	Msg SignalMsg
+	Cli *client.Client
 }
 
 // handle {}
-func (s *ExceptionHandler)Handle() {
+func (s *ExceptionHandler) Handle() {
 	s.Cli.UpdateTs()
 }

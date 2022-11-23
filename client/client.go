@@ -6,12 +6,16 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"net"
+	"sync"
 	"time"
 )
 
-//const (
-//	BLACKLIST_PEERS_LIMIT = 4
-//)
+//Initialing pool
+var clientPool = sync.Pool{
+	New: func() interface{} {
+		return &Client{}
+	},
+}
 
 type Client struct {
 	Conn net.Conn
@@ -19,10 +23,6 @@ type Client struct {
 	PeerId string //唯一标识
 
 	Timestamp int64
-
-	//blacklist    []string
-	//blacklistPos int
-	//mu           sync.Mutex
 }
 
 type SignalCloseResp struct {
@@ -38,12 +38,11 @@ type SignalVerResp struct {
 }
 
 func NewPeerClient(peerId string, conn net.Conn) *Client {
-	return &Client{
-		Conn:      conn,
-		PeerId:    peerId,
-		Timestamp: time.Now().Unix(),
-		//blacklist: make([]string, BLACKLIST_PEERS_LIMIT),
-	}
+	c := clientPool.Get().(*Client)
+	c.Conn = conn
+	c.PeerId = peerId
+	c.Timestamp = time.Now().Unix()
+	return c
 }
 
 func (c *Client) UpdateTs() {
@@ -107,24 +106,6 @@ func (c *Client) sendData(data []byte, binary bool) (error, bool) {
 }
 
 func (c *Client) Close() error {
+	clientPool.Put(c)
 	return c.Conn.Close()
 }
-
-//func (c *Client) EnqueueBlacklistPeer(id string) {
-//	c.mu.Lock()
-//	defer c.mu.Unlock()
-//	c.blacklist[c.blacklistPos] = id
-//	c.blacklistPos++
-//	if c.blacklistPos >= BLACKLIST_PEERS_LIMIT {
-//		c.blacklistPos = 0
-//	}
-//}
-//
-//func (c *Client) HasBlacklistPeer(id string) bool {
-//	for _, v := range c.blacklist {
-//		if id == v {
-//			return true
-//		}
-//	}
-//	return false
-//}

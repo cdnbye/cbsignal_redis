@@ -9,17 +9,18 @@ import (
 )
 
 type RejectHandler struct {
-	Msg *SignalMsg
+	Msg SignalMsg
 	Cli *client.Client
 }
 
 func (s *RejectHandler) Handle() {
-	//h := hub.GetInstance()
 	//判断节点是否还在线
 	toPeerId := s.Msg.ToPeerId
-	//if s.Cli.HasBlacklistPeer(toPeerId) {
-	//	return
-	//}
+	key := keyForFilter(s.Cli.PeerId, toPeerId)
+	if _, ok := filter.Get(key); ok {
+		return
+	}
+	//log.Warnf("reject reason %s", s.Msg.Reason)
 	resp := nodes.SignalResp{
 		Action:     "reject",
 		FromPeerId: s.Cli.PeerId,
@@ -27,7 +28,7 @@ func (s *RejectHandler) Handle() {
 	}
 	if target, ok := hub.GetClient(toPeerId); ok {
 		hub.SendJsonToClient(target, resp)
-		//s.Cli.EnqueueBlacklistPeer(toPeerId)
+		filter.Put(key, nil)
 		return
 	}
 	if addr, err := redis.GetRemotePeerAddr(toPeerId); err == nil {
@@ -42,7 +43,7 @@ func (s *RejectHandler) Handle() {
 				log.Warnf("SendMsgSignal to remote failed " + err.Error())
 				return
 			}
-			//s.Cli.EnqueueBlacklistPeer(toPeerId)
+			filter.Put(key, nil)
 		} else {
 			log.Warnf("node %s not found", addr)
 		}

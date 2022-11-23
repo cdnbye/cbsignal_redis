@@ -9,7 +9,7 @@ import (
 )
 
 type SignalHandler struct {
-	Msg *SignalMsg
+	Msg SignalMsg
 	Cli *client.Client
 }
 
@@ -17,18 +17,15 @@ func (s *SignalHandler) Handle() {
 	//h := hub.GetInstance()
 	//log.Infof("load client Msg %v", s.Msg)
 
+	defer func() {
+		//log.Warnf("signalMsgPool.Put(s)")
+		signalMsgPool.Put(s)
+	}()
+
 	cli := s.Cli
-
-	if cli.PeerId == "" {
-		log.Warnf("PeerId is not valid")
-		return
-	}
-
 	toPeerId := s.Msg.ToPeerId
-	//if cli.HasBlacklistPeer(toPeerId) {
-	//	return
-	//}
-	if redis.IsNotFoundPeer(toPeerId) {
+	key := keyForFilter(cli.PeerId, toPeerId)
+	if _, ok := filter.Get(key); ok {
 		return
 	}
 	signalResp := nodes.SignalResp{
@@ -41,7 +38,7 @@ func (s *SignalHandler) Handle() {
 		if err, fatal := hub.SendJsonToClient(target, signalResp); err != nil {
 			log.Infof("%s send signal to peer %s error %s", cli.PeerId, target.PeerId, err)
 			if !fatal {
-				s.handlePeerNotFound(toPeerId)
+				s.handlePeerNotFound(key, toPeerId)
 			}
 		}
 		return
@@ -49,7 +46,7 @@ func (s *SignalHandler) Handle() {
 	if addr, err := redis.GetRemotePeerAddr(toPeerId); err == nil {
 		// 如果是本节点
 		if addr == nodes.GetSelfAddr() {
-			s.handlePeerNotFound(toPeerId)
+			s.handlePeerNotFound(key, toPeerId)
 			return
 		}
 		node, ok := nodes.GetNode(addr)
@@ -57,36 +54,29 @@ func (s *SignalHandler) Handle() {
 			err = node.SendMsgSignal(&signalResp, toPeerId)
 			if err != nil {
 				log.Warnf("SendMsgSignal to remote failed " + err.Error())
-				s.handlePeerNotFound(toPeerId)
+				s.handlePeerNotFound(key, toPeerId)
 				return
 			}
 		} else {
 			log.Warnf("node %s not found", addr)
-			s.handlePeerNotFound(toPeerId)
+			s.handlePeerNotFound(key, toPeerId)
 		}
 		return
 	} else {
-		log.Info(err.Error())
+		if err != redis.ErrRedisNil {
+			log.Warnf(err.Error())
+		}
 	}
 
 	log.Infof("Peer %s not found", s.Msg.ToPeerId)
-	s.handlePeerNotFound(toPeerId)
+	s.handlePeerNotFound(key, toPeerId)
 }
 
-func (s *SignalHandler) handlePeerNotFound(toPeerId string) {
-	// 发送一次后，同一peerId下次不再发送，节省sysCall
-	//if !s.Cli.HasBlacklistPeer(toPeerId) {
-	//	s.Cli.EnqueueBlacklistPeer(toPeerId)
-	//	resp := nodes.SignalResp{
-	//		Action:     "signal",
-	//		FromPeerId: s.Msg.ToPeerId,
-	//	}
-	//	hub.SendJsonToClient(s.Cli, resp)
-	//}
-	redis.SetNotFoundPeer(toPeerId)
+func (s *SignalHandler) handlePeerNotFound(key, toPeerId string) {
+	filter.Put(key, nil)
 	resp := nodes.SignalResp{
 		Action:     "signal",
-		FromPeerId: s.Msg.ToPeerId,
+		FromPeerId: toPeerId,
 	}
 	hub.SendJsonToClient(s.Cli, resp)
 }

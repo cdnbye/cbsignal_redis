@@ -2,8 +2,29 @@ package handler
 
 import (
 	"cbsignal/client"
+	"cbsignal/util/ecache"
 	"github.com/bytedance/sonic"
+	"sync"
 )
+
+var (
+	filter *ecache.Cache
+)
+
+//Initialing pool
+var signalMsgPool = sync.Pool{
+	New: func() interface{} {
+		return &SignalHandler{}
+	},
+}
+
+func init() {
+	filter = ecache.NewLRUCache(16, 300, 0)
+}
+
+func keyForFilter(from, to string) string {
+	return from + to
+}
 
 type Handler interface {
 	Handle()
@@ -28,12 +49,15 @@ func NewHandler(message []byte, cli *client.Client) (Handler, error) {
 func NewHandlerMsg(signal SignalMsg, cli *client.Client) (Handler, error) {
 	switch signal.Action {
 	case "signal":
-		return &SignalHandler{Msg: &signal, Cli: cli}, nil
+		hdr := signalMsgPool.Get().(*SignalHandler)
+		hdr.Msg = signal
+		hdr.Cli = cli
+		return hdr, nil
 	case "ping":
 		return &HeartbeatHandler{Cli: cli}, nil
 	case "reject":
-		return &RejectHandler{Msg: &signal, Cli: cli}, nil
+		return &RejectHandler{Msg: signal, Cli: cli}, nil
 	default:
-		return &ExceptionHandler{Msg: &signal, Cli: cli}, nil
+		return &ExceptionHandler{Msg: signal, Cli: cli}, nil
 	}
 }

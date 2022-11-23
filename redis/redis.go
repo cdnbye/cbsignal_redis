@@ -24,6 +24,7 @@ func (a *Addr) String() string {
 }
 
 const (
+	ErrRedisNil                  = redis.Nil
 	PEER_EXPIRE_DUTATION         = 10 * time.Minute
 	CLIENT_ALIVE_EXPIRE_DUTATION = 20 * time.Second
 	BREAK_DURATION               = 2 * time.Second
@@ -88,25 +89,13 @@ func initCache() {
 		// cache will not allocate more memory than this limit, value in MB
 		// if value is reached then the oldest entries can be overridden for the new ones
 		// 0 value means no size limit
-		HardMaxCacheSize: 15,
+		HardMaxCacheSize: 20,
 	}
 	var err error
 	cache, err = bigcache.NewBigCache(cacheConfig)
 	if err != nil {
 		panic(err)
 	}
-}
-
-func IsNotFoundPeer(peerId string) bool {
-	_, err := cache.Get(keyForNotFoundPeerId(peerId))
-	if err == nil {
-		return true
-	}
-	return false
-}
-
-func SetNotFoundPeer(peerId string) {
-	cache.Set(keyForNotFoundPeerId(peerId), []byte{})
 }
 
 func GetRemotePeerAddr(peerId string) (string, error) {
@@ -199,10 +188,6 @@ func GetNodeClientCount(addr string) (int64, error) {
 
 func keyForPeerId(peerId string) string {
 	return "signal:peerId:" + peerId
-}
-
-func keyForNotFoundPeerId(peerId string) string {
-	return "bl:" + peerId
 }
 
 func keyForMQ(addr string) string {
