@@ -89,7 +89,7 @@ func initCache() {
 		// cache will not allocate more memory than this limit, value in MB
 		// if value is reached then the oldest entries can be overridden for the new ones
 		// 0 value means no size limit
-		HardMaxCacheSize: 20,
+		HardMaxCacheSize: 15,
 	}
 	var err error
 	cache, err = bigcache.NewBigCache(cacheConfig)
