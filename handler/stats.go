@@ -4,6 +4,7 @@ import (
 	"cbsignal/hub"
 	"cbsignal/nodes"
 	"cbsignal/redis"
+	"cbsignal/util"
 	"cbsignal/util/cpu"
 	"fmt"
 	"github.com/bytedance/sonic"
@@ -28,6 +29,7 @@ type SignalInfo struct {
 	NumPerMap          []int  `json:"num_per_map"`
 	CpuUsage           int64  `json:"cpu_usage"`
 	RedisConnected     bool   `json:"redis_connected"`
+	InternalIp         string `json:"internal_ip"`
 }
 
 type Resp struct {
@@ -78,6 +80,7 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 		info.TotalConnections = info.CurrentConnections + nodes.GetTotalNumClient()
 		info.NumInstance = nodes.GetNumNode() + 1
 		info.CpuUsage = atomic.LoadInt64(&G_CPU) / 10
+		info.InternalIp = util.GetInternalIP()
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		resp := Resp{
 			Ret:  0,

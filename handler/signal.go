@@ -71,12 +71,3 @@ func (s *SignalHandler) Handle() {
 	log.Infof("Peer %s not found", s.Msg.ToPeerId)
 	s.handlePeerNotFound(key, toPeerId)
 }
-
-func (s *SignalHandler) handlePeerNotFound(key, toPeerId string) {
-	filter.Put(key, nil)
-	resp := nodes.SignalResp{
-		Action:     "signal",
-		FromPeerId: toPeerId,
-	}
-	hub.SendJsonToClient(s.Cli, resp)
-}

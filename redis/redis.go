@@ -1,10 +1,11 @@
 package redis
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/allegro/bigcache/v3"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v8"
 	"sync"
 	"time"
 )
@@ -37,6 +38,7 @@ var (
 	IsAlive  = true
 	once     sync.Once
 	cache    *bigcache.BigCache
+	ctx      = context.Background()
 )
 
 func InitRedisCluster(selfAddr string, redisAddrs []*Addr, password string) RedisClient {
@@ -102,7 +104,7 @@ func GetRemotePeerAddr(peerId string) (string, error) {
 	//fmt.Println("redis GetRemotePeerAddr peerId " + peerId)
 	v, err := cache.Get(peerId)
 	if err != nil {
-		addr, err := RedisCli.Get(keyForPeerId(peerId)).Result()
+		addr, err := RedisCli.Get(ctx, keyForPeerId(peerId)).Result()
 		if err == nil {
 			_ = cache.Set(peerId, []byte(addr))
 		}
@@ -116,7 +118,7 @@ func SetLocalPeer(peerId string) error {
 		return errors.New("redis is not alive")
 	}
 	//fmt.Printf("SetLocalPeer peerId %s SelfAddr %s\n", peerId, SelfAddr)
-	err := RedisCli.Set(keyForPeerId(peerId), SelfAddr, PEER_EXPIRE_DUTATION).Err()
+	err := RedisCli.Set(ctx, keyForPeerId(peerId), SelfAddr, PEER_EXPIRE_DUTATION).Err()
 	if err != nil {
 		takeABreak()
 	}
@@ -127,7 +129,7 @@ func DelLocalPeer(peerId string) error {
 	if !IsAlive {
 		return errors.New("redis is not alive")
 	}
-	err := RedisCli.Del(keyForPeerId(peerId)).Err()
+	err := RedisCli.Del(ctx, keyForPeerId(peerId)).Err()
 	if err != nil {
 		takeABreak()
 	}
@@ -139,23 +141,23 @@ func UpdateLocalPeerExpiration(peerId string) error {
 	if !IsAlive {
 		return errors.New("redis is not alive")
 	}
-	return RedisCli.Expire(keyForPeerId(peerId), PEER_EXPIRE_DUTATION).Err()
+	return RedisCli.Expire(ctx, keyForPeerId(peerId), PEER_EXPIRE_DUTATION).Err()
 }
 
 func PushMsgToMQ(addr string, msg interface{}) (int64, error) {
-	return RedisCli.RPush(keyForMQ(addr), msg).Result()
+	return RedisCli.RPush(ctx, keyForMQ(addr), msg).Result()
 }
 
 func GetLenMQ(addr string) (int64, error) {
-	return RedisCli.LLen(keyForMQ(addr)).Result()
+	return RedisCli.LLen(ctx, keyForMQ(addr)).Result()
 }
 
 func ClearMQ(addr string) error {
-	return RedisCli.LTrim(keyForMQ(addr), 1, 0).Err()
+	return RedisCli.LTrim(ctx, keyForMQ(addr), 1, 0).Err()
 }
 
 func BlockPopMQ(timeout time.Duration, addr string) ([]byte, error) {
-	result, err := RedisCli.BLPop(timeout, keyForMQ(addr)).Result()
+	result, err := RedisCli.BLPop(ctx, timeout, keyForMQ(addr)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -163,15 +165,15 @@ func BlockPopMQ(timeout time.Duration, addr string) ([]byte, error) {
 }
 
 func TrimMQ(addr string, len int64) error {
-	return RedisCli.LTrim(keyForMQ(addr), -len, -1).Err()
+	return RedisCli.LTrim(ctx, keyForMQ(addr), -len, -1).Err()
 }
 
 func PopRangeMQ(addr string, len int64) ([]string, error) {
 	key := keyForMQ(addr)
 	pClient := RedisCli.Pipeline()
-	pClient.LRange(key, 0, len-1)
-	pClient.LTrim(key, len, -1)
-	c, err := pClient.Exec()
+	pClient.LRange(ctx, key, 0, len-1)
+	pClient.LTrim(ctx, key, len, -1)
+	c, err := pClient.Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -179,11 +181,11 @@ func PopRangeMQ(addr string, len int64) ([]string, error) {
 }
 
 func UpdateClientCount(count int64) error {
-	return RedisCli.Set(keyForStats(SelfAddr), count, CLIENT_ALIVE_EXPIRE_DUTATION).Err()
+	return RedisCli.Set(ctx, keyForStats(SelfAddr), count, CLIENT_ALIVE_EXPIRE_DUTATION).Err()
 }
 
 func GetNodeClientCount(addr string) (int64, error) {
-	return RedisCli.Get(keyForStats(addr)).Int64()
+	return RedisCli.Get(ctx, keyForStats(addr)).Int64()
 }
 
 func keyForPeerId(peerId string) string {

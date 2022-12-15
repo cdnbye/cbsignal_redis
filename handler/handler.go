@@ -2,6 +2,8 @@ package handler
 
 import (
 	"cbsignal/client"
+	"cbsignal/hub"
+	"cbsignal/nodes"
 	"cbsignal/util/ecache"
 	"github.com/bytedance/sonic"
 	"sync"
@@ -60,4 +62,13 @@ func NewHandlerMsg(signal SignalMsg, cli *client.Client) (Handler, error) {
 	default:
 		return &ExceptionHandler{Msg: signal, Cli: cli}, nil
 	}
+}
+
+func (s *SignalHandler) handlePeerNotFound(key, toPeerId string) {
+	filter.Put(key, nil)
+	resp := nodes.SignalResp{
+		Action:     "signal",
+		FromPeerId: toPeerId,
+	}
+	hub.SendJsonToClient(s.Cli, resp)
 }

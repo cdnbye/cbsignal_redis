@@ -11,6 +11,7 @@ import (
 	"cbsignal/util/fastmap/cmap"
 	"cbsignal/util/log"
 	"cbsignal/util/ratelimit"
+	"context"
 	"crypto/hmac"
 	"crypto/md5"
 	"encoding/hex"
@@ -33,7 +34,7 @@ import (
 )
 
 const (
-	VERSION                   = "4.4.1"
+	VERSION                   = "4.5.0"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	KEEP_LIVE_INTERVAL        = 7
 	EXPIRE_LIMIT              = 12 * 60
@@ -49,10 +50,8 @@ var (
 	selfIp   string
 	selfAddr string
 
-	signalPort     string
-	signalPortTLS  string
-	signalCertPath string
-	signalKeyPath  string
+	signalPorts    []string
+	signalPortsTLS []portTLS
 
 	versionNum int
 
@@ -67,6 +66,12 @@ var (
 
 	redisCli redis.RedisClient
 )
+
+type portTLS struct {
+	Port string `json:"port"`
+	Cert string `json:"cert"`
+	Key  string `json:"key"`
+}
 
 func init() {
 	pflag.Parse()
@@ -97,16 +102,16 @@ func init() {
 		viper.GetInt("log.log_backup_count"),
 		viper.GetInt("log.log_max_age"))
 
-	signalPort = viper.GetString("port")
-	signalPortTLS = viper.GetString("tls.port")
-	signalCertPath = viper.GetString("tls.cert")
-	signalKeyPath = viper.GetString("tls.key")
+	signalPorts = viper.GetStringSlice("port")
+	if err := viper.UnmarshalKey("tls", &signalPortsTLS); err != nil {
+		log.Fatal(err)
+	}
 
 	selfIp = util.GetInternalIP()
-	if signalPort != "" {
-		selfAddr = fmt.Sprintf("%s:%s", selfIp, signalPort)
-	} else if signalPortTLS != "" {
-		selfAddr = fmt.Sprintf("%s:%s", selfIp, signalPortTLS)
+	if len(signalPorts) > 0 {
+		selfAddr = fmt.Sprintf("%s:%s", selfIp, signalPorts[0])
+	} else if len(signalPortsTLS) > 0 {
+		selfAddr = fmt.Sprintf("%s:%s", selfIp, signalPortsTLS[0])
 	} else {
 		selfAddr = fmt.Sprintf("%s", selfIp)
 	}
@@ -135,7 +140,7 @@ func init() {
 		redisDB := viper.GetInt("redis.dbname")
 		redisCli = redis.InitRedisClient(selfAddr, redisAddr.String(), redisPsw, redisDB)
 	}
-	_, err := redisCli.Ping().Result()
+	_, err := redisCli.Ping(context.Background()).Result()
 	if err != nil {
 		panic(err)
 	}
@@ -174,9 +179,10 @@ func main() {
 		panic(err)
 	}
 
+	log.Warnf("signal version %s", VERSION)
 	// rate limit
 	if limitEnabled {
-		log.Warnf("Init ratelimit with rate %d version %s", limitRate, VERSION)
+		log.Warnf("Init ratelimit with rate %d", limitRate)
 		limiter = ratelimit.NewBucketWithQuantum(time.Second, limitRate, limitRate)
 	}
 
@@ -190,24 +196,30 @@ func main() {
 		log.Warnf("security on\nmaxTimeStampAge %d\ntoken %s", maxTimeStampAge, securityToken)
 	}
 
-	if signalPort != "" {
-		go func() {
-			log.Warnf("Start to listening the incoming requests on http address: %s\n", signalPort)
-			err := http.ListenAndServe(":"+signalPort, nil)
-			if err != nil {
-				log.Fatal("ListenAndServe: ", err)
-			}
-		}()
+	if len(signalPorts) > 0 {
+		for _, port := range signalPorts {
+			go func(port string) {
+				log.Warnf("Start to listening the incoming requests on http address: %s\n", port)
+				err := http.ListenAndServe(":"+port, nil)
+				if err != nil {
+					log.Fatal("ListenAndServe: ", err)
+				}
+			}(port)
+		}
 	}
 
-	if signalPortTLS != "" && util.Exists(signalCertPath) && util.Exists(signalKeyPath) {
-		go func() {
-			log.Warnf("Start to listening the incoming requests on https address: %s\n", signalPortTLS)
-			err := http.ListenAndServeTLS(":"+signalPortTLS, signalCertPath, signalKeyPath, nil)
-			if err != nil {
-				log.Fatal("ListenAndServe: ", err)
+	if len(signalPortsTLS) > 0 {
+		for _, portTls := range signalPortsTLS {
+			if portTls.Port != "" && util.Exists(portTls.Cert) && util.Exists(portTls.Key) {
+				go func(portTls portTLS) {
+					log.Warnf("Start to listening the incoming requests on https address: %s\n", portTls.Port)
+					err := http.ListenAndServeTLS(":"+portTls.Port, portTls.Cert, portTls.Key, nil)
+					if err != nil {
+						log.Fatal("ListenAndServe: ", err)
+					}
+				}(portTls)
 			}
-		}()
+		}
 	}
 
 	nodes.NewNodeHub(selfAddr)
@@ -338,13 +350,15 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer func() {
+			if err := recover(); err != nil {
+				log.Error(err)
+			}
 			// 节点离开
 			log.Infof("peer leave")
 			if ok := hub.DoUnregister(id); ok {
 				//log.Infof("close peer %s", id)
 				closeInvalidConn(c)
 			}
-
 		}()
 		//err := conn.SetReadDeadline(time.Now().Add(h.heartbeat * 3))
 		msg := make([]wsutil.Message, 0, 4)
