@@ -14,13 +14,16 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"io/ioutil"
 	"net/http"
 	"sync/atomic"
 
@@ -34,7 +37,7 @@ import (
 )
 
 const (
-	VERSION                   = "4.5.0"
+	VERSION                   = "4.5.2"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	KEEP_LIVE_INTERVAL        = 7
 	EXPIRE_LIMIT              = 12 * 60
@@ -218,6 +221,26 @@ func main() {
 						log.Fatal("ListenAndServe: ", err)
 					}
 				}(portTls)
+
+				certFile, err := ioutil.ReadFile(portTls.Cert)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				pemBlock, _ := pem.Decode(certFile)
+				if pemBlock == nil {
+					log.Error("decode error")
+					continue
+				}
+				cert, err := x509.ParseCertificate(pemBlock.Bytes)
+				if err != nil {
+					log.Error(err)
+					continue
+				}
+				handler.Certs = append(handler.Certs, handler.CertInfo{
+					Name:     cert.Subject.CommonName,
+					ExpireAt: cert.NotAfter,
+				})
 			}
 		}
 	}

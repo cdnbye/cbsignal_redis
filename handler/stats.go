@@ -18,18 +18,26 @@ const (
 	HEALTH_CHECK_CPU_LIMIT = 60
 )
 
+type CertInfo struct {
+	Name     string    `json:"name"`
+	ExpireAt time.Time `json:"expire_at"`
+}
+
+type CertInfos []CertInfo
+
 type SignalInfo struct {
-	Version            string `json:"version"`
-	CurrentConnections int64  `json:"current_connections"`
-	TotalConnections   int64  `json:"total_connections"`
-	NumInstance        int    `json:"num_instance"`
-	RateLimit          int64  `json:"rate_limit,omitempty"`
-	SecurityEnabled    bool   `json:"security_enabled,omitempty"`
-	NumGoroutine       int    `json:"num_goroutine"`
-	NumPerMap          []int  `json:"num_per_map"`
-	CpuUsage           int64  `json:"cpu_usage"`
-	RedisConnected     bool   `json:"redis_connected"`
-	InternalIp         string `json:"internal_ip"`
+	Version            string    `json:"version"`
+	CurrentConnections int64     `json:"current_connections"`
+	TotalConnections   int64     `json:"total_connections"`
+	NumInstance        int       `json:"num_instance"`
+	RateLimit          int64     `json:"rate_limit,omitempty"`
+	SecurityEnabled    bool      `json:"security_enabled,omitempty"`
+	NumGoroutine       int       `json:"num_goroutine"`
+	NumPerMap          []int     `json:"num_per_map"`
+	CpuUsage           int64     `json:"cpu_usage"`
+	RedisConnected     bool      `json:"redis_connected"`
+	InternalIp         string    `json:"internal_ip"`
+	CertInfos          CertInfos `json:"cert_infos"`
 }
 
 type Resp struct {
@@ -41,6 +49,7 @@ var (
 	G_CPU      int64
 	decay      = 0.7
 	StatsToken string
+	Certs      CertInfos = make(CertInfos, 0)
 )
 
 func init() {
@@ -68,6 +77,7 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 			w.WriteHeader(403)
 			return
 		}
+		info.CertInfos = Certs
 		info.NumGoroutine = runtime.NumGoroutine()
 		info.NumPerMap = hub.GetClientNumPerMap()
 		if redis.IsAlive {
