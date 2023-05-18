@@ -40,11 +40,6 @@ type SignalInfo struct {
 	CertInfos          CertInfos `json:"cert_infos"`
 }
 
-type Resp struct {
-	Ret  int         `json:"ret"`
-	Data *SignalInfo `json:"data"`
-}
-
 var (
 	G_CPU      int64
 	decay      = 0.7
@@ -92,17 +87,9 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 		info.CpuUsage = atomic.LoadInt64(&G_CPU) / 10
 		info.InternalIp = util.GetInternalIP()
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		resp := Resp{
-			Ret:  0,
-			Data: &info,
-		}
-		b, err := sonic.ConfigDefault.MarshalIndent(resp, "", "   ")
+		b, err := sonic.ConfigDefault.MarshalIndent(info, "", "   ")
 		if err != nil {
-			resp, _ := sonic.Marshal(Resp{
-				Ret:  -1,
-				Data: nil,
-			})
-			w.Write(resp)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		w.Write(b)

@@ -37,12 +37,12 @@ import (
 )
 
 const (
-	VERSION                   = "4.5.2"
+	VERSION                   = "4.5.4"
 	CHECK_CLIENT_INTERVAL     = 15 * 60
 	KEEP_LIVE_INTERVAL        = 7
 	EXPIRE_LIMIT              = 12 * 60
-	REJECT_JOIN_CPU_Threshold = 770
-	REJECT_MSG_CPU_Threshold  = 820
+	REJECT_JOIN_CPU_Threshold = 720
+	REJECT_MSG_CPU_Threshold  = 770
 )
 
 var (
