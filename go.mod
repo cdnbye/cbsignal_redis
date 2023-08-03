@@ -11,6 +11,7 @@ require (
 	github.com/gobwas/ws v1.1.0
 	github.com/golang/protobuf v1.5.2
 	github.com/json-iterator/go v1.1.12
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/shirou/gopsutil/v3 v3.22.9
 	github.com/spf13/pflag v1.0.5
@@ -31,7 +32,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
