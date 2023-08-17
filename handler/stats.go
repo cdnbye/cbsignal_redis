@@ -86,7 +86,7 @@ func StatsHandler(info SignalInfo) http.HandlerFunc {
 		info.NumInstance = nodes.GetNumNode() + 1
 		info.CpuUsage = atomic.LoadInt64(&G_CPU) / 10
 		info.InternalIp = util.GetInternalIP()
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		util.SetOriginAllowAll(w)
 		b, err := sonic.ConfigDefault.MarshalIndent(info, "", "   ")
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -102,7 +102,7 @@ func VersionHandler(version string) http.HandlerFunc {
 			w.WriteHeader(403)
 			return
 		}
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		util.SetOriginAllowAll(w)
 		w.Write([]byte(fmt.Sprintf("%s", version)))
 
 	}
@@ -114,7 +114,7 @@ func CountHandler() http.HandlerFunc {
 			w.WriteHeader(403)
 			return
 		}
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		util.SetOriginAllowAll(w)
 		if redis.IsAlive {
 			w.Write([]byte(fmt.Sprintf("%d", hub.GetClientCount())))
 		} else {
@@ -130,7 +130,7 @@ func TotalCountHandler() http.HandlerFunc {
 			w.WriteHeader(403)
 			return
 		}
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		util.SetOriginAllowAll(w)
 		w.Write([]byte(fmt.Sprintf("%d", hub.GetClientCount()+nodes.GetTotalNumClient())))
 	}
 }

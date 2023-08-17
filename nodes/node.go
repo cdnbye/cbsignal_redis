@@ -34,6 +34,7 @@ type Node struct {
 type SignalResp struct {
 	Action     string      `json:"action"`
 	FromPeerId string      `json:"from_peer_id,omitempty"`
+	From       string      `json:"from,omitempty"`
 	Data       interface{} `json:"data,omitempty"`
 	Reason     string      `json:"reason,omitempty"`
 }

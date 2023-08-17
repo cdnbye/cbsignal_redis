@@ -39,6 +39,25 @@ type SignalMsg struct {
 	Reason   string      `json:"reason"`
 }
 
+type SignalMsgs []SignalMsg
+
+func NewPostHandler(message []byte, cli *client.Client) ([]Handler, error) {
+	signals := SignalMsgs{}
+	if err := sonic.Unmarshal(message, &signals); err != nil {
+		//log.Println(err)
+		return nil, err
+	}
+	var handlers []Handler
+	for _, signal := range signals {
+		handler, err := NewHandlerMsg(signal, cli)
+		if err != nil {
+			return nil, err
+		}
+		handlers = append(handlers, handler)
+	}
+	return handlers, nil
+}
+
 func NewHandler(message []byte, cli *client.Client) (Handler, error) {
 	signal := SignalMsg{}
 	if err := sonic.Unmarshal(message, &signal); err != nil {
@@ -67,8 +86,12 @@ func NewHandlerMsg(signal SignalMsg, cli *client.Client) (Handler, error) {
 func (s *SignalHandler) handlePeerNotFound(key, toPeerId string) {
 	filter.Put(key, nil)
 	resp := nodes.SignalResp{
-		Action:     "signal",
-		FromPeerId: toPeerId,
+		Action: "signal",
+	}
+	if s.Cli.IsPolling {
+		resp.From = toPeerId
+	} else {
+		resp.FromPeerId = toPeerId
 	}
 	hub.SendJsonToClient(s.Cli, resp)
 }

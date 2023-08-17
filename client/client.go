@@ -2,12 +2,20 @@ package client
 
 import (
 	"cbsignal/util/log"
+	"errors"
+	"fmt"
 	"github.com/bytedance/sonic"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"net"
 	"sync"
 	"time"
+)
+
+const (
+	POLLING_QUEUE_SIZE   = 30
+	WS_EXPIRE_LIMIT      = 11 * 60
+	POLLING_EXPIRE_LIMIT = 3 * 60
 )
 
 //Initialing pool
@@ -18,11 +26,12 @@ var clientPool = sync.Pool{
 }
 
 type Client struct {
-	Conn net.Conn
-
-	PeerId string //唯一标识
-
+	Conn      net.Conn
+	PeerId    string //唯一标识
 	Timestamp int64
+	// polling
+	IsPolling bool
+	MsgQueue  chan []byte
 }
 
 type SignalCloseResp struct {
@@ -33,14 +42,26 @@ type SignalCloseResp struct {
 }
 
 type SignalVerResp struct {
-	Action string `json:"action"`
+	Action string `json:"action,omitempty"`
 	Ver    int    `json:"ver"`
 }
 
-func NewPeerClient(peerId string, conn net.Conn) *Client {
+func NewWebsocketPeerClient(peerId string, conn net.Conn) *Client {
 	c := clientPool.Get().(*Client)
 	c.Conn = conn
 	c.PeerId = peerId
+	c.Timestamp = time.Now().Unix()
+	c.IsPolling = false
+	c.MsgQueue = nil
+	return c
+}
+
+func NewPollingPeerClient(peerId string) *Client {
+	c := clientPool.Get().(*Client)
+	c.Conn = nil
+	c.PeerId = peerId
+	c.IsPolling = true
+	c.MsgQueue = make(chan []byte, POLLING_QUEUE_SIZE)
 	c.Timestamp = time.Now().Unix()
 	return c
 }
@@ -49,8 +70,11 @@ func (c *Client) UpdateTs() {
 	c.Timestamp = time.Now().Unix()
 }
 
-func (c *Client) IsExpired(now, limit int64) bool {
-	return now-c.Timestamp > limit
+func (c *Client) IsExpired(now int64) bool {
+	if c.IsPolling {
+		return now-c.Timestamp > POLLING_EXPIRE_LIMIT
+	}
+	return now-c.Timestamp > WS_EXPIRE_LIMIT
 }
 
 func (c *Client) SendMsgClose(reason string) error {
@@ -82,20 +106,28 @@ func (c *Client) SendMsgVersion(version int) error {
 }
 
 func (c *Client) SendMessage(msg []byte) (error, bool) {
-	return c.sendData(msg, false)
-}
-
-func (c *Client) SendBinaryData(data []byte) (error, bool) {
-	return c.sendData(data, true)
-}
-
-func (c *Client) sendData(data []byte, binary bool) (error, bool) {
-	var opCode ws.OpCode
-	if binary {
-		opCode = ws.OpBinary
-	} else {
-		opCode = ws.OpText
+	if c.IsPolling {
+		return c.SendDataPolling(msg)
 	}
+	return c.SendDataWs(msg)
+}
+
+func (c *Client) SendDataPolling(data []byte) (error, bool) {
+	if len(c.MsgQueue) >= POLLING_QUEUE_SIZE {
+		err := errors.New(fmt.Sprintf("msg queue exceed %d", POLLING_QUEUE_SIZE))
+		//log.Error("SendDataPolling", err)
+		//if c.IsExpired(time.Now().Unix(), 30) {
+		//	// 如果30s内还没有重新轮询
+		//	return err, true
+		//}
+		return err, false
+	}
+	c.MsgQueue <- data
+	return nil, false
+}
+
+func (c *Client) SendDataWs(data []byte) (error, bool) {
+	opCode := ws.OpText
 	err := wsutil.WriteServerMessage(c.Conn, opCode, data)
 	if err != nil {
 		// handle error
@@ -107,5 +139,9 @@ func (c *Client) sendData(data []byte, binary bool) (error, bool) {
 
 func (c *Client) Close() error {
 	clientPool.Put(c)
+	if c.IsPolling {
+		//close(c.MsgQueue)
+		return nil
+	}
 	return c.Conn.Close()
 }

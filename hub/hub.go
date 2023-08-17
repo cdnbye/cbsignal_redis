@@ -68,10 +68,6 @@ func GetClient(id string) (*client.Client, bool) {
 	return h.Clients.Get(id)
 }
 
-func HasClient(id string) bool {
-	return h.Clients.Has(id)
-}
-
 func RemoveClient(id string) {
 	h.Clients.Remove(id)
 }
@@ -150,7 +146,7 @@ func sendMessageToLocalPeer(raw []byte) {
 		if ok {
 			log.Infof("local peer %s found", item.ToPeerId)
 			if err, _ := cli.SendMessage(item.Data); err != nil {
-				log.Warnf("from remote send signal to peer %s error %s", item.ToPeerId, err)
+				//log.Warnf("from remote send signal to peer %s error %s", item.ToPeerId, err)
 				if ok := DoUnregister(cli.PeerId); ok {
 					cli.Close()
 				}

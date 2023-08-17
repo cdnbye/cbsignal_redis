@@ -50,11 +50,9 @@ func GetNumNode() int {
 }
 
 func (n *NodeHub) Delete(node *Node) {
-	//n.mu.Lock()
 	node.Destroy()
 	log.Warnf("NodeHub delete %s", node.Addr())
 	delete(n.nodes, node.Addr())
-	//n.mu.Unlock()
 }
 
 func (n *NodeHub) Add(addr string, peer *Node) {
@@ -97,10 +95,7 @@ func (n *NodeHub) GetAll() map[string]*Node {
 
 func (n *NodeHub) Clear() {
 	log.Info("NodeHub clear")
-	//n.mu.Lock()
-
 	n.nodes = make(map[string]*Node, 20)
-	//n.mu.Unlock()
 }
 
 func ClearNodeHub() {

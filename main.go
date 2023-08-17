@@ -25,22 +25,22 @@ import (
 	"github.com/spf13/viper"
 	"io/ioutil"
 	"net/http"
+	"strconv"
+	"sync"
 	"sync/atomic"
 
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 )
 
 const (
-	VERSION                   = "4.5.4"
-	CHECK_CLIENT_INTERVAL     = 15 * 60
+	VERSION                   = "4.6.2"
+	CHECK_CLIENT_INTERVAL     = 6 * 60
 	KEEP_LIVE_INTERVAL        = 7
-	EXPIRE_LIMIT              = 12 * 60
 	REJECT_JOIN_CPU_Threshold = 720
 	REJECT_MSG_CPU_Threshold  = 770
 )
@@ -56,8 +56,8 @@ var (
 	signalPorts    []string
 	signalPortsTLS []portTLS
 
-	versionNum int
-
+	versionNum   int
+	buffers      sync.Pool
 	limitEnabled bool
 	limitRate    int64
 	limiter      *ratelimit.Bucket
@@ -148,6 +148,12 @@ func init() {
 		panic(err)
 	}
 
+	buffers = sync.Pool{
+		New: func() interface{} {
+			return &bytes.Buffer{}
+		},
+	}
+
 	setupConfigFromViper()
 
 	//开始监听
@@ -158,8 +164,6 @@ func init() {
 	})
 
 	hub.Init(selfAddr)
-
-	//go hub.Consume(selfAddr)
 
 	go checkConns()
 
@@ -247,9 +251,9 @@ func main() {
 
 	nodes.NewNodeHub(selfAddr)
 
-	http.HandleFunc("/ws", wsHandler)
-	http.HandleFunc("/wss", wsHandler)
-	http.HandleFunc("/", wsHandler)
+	http.HandleFunc("/ws", commonHandler)
+	http.HandleFunc("/wss", commonHandler)
+	http.HandleFunc("/", commonHandler)
 
 	if statsEnabled {
 		http.HandleFunc("/count", handler.CountHandler())
@@ -277,96 +281,211 @@ func main() {
 	log.Sync()
 }
 
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-
-	// cpu usage
-	cpuUsage := atomic.LoadInt64(&handler.G_CPU)
-	if cpuUsage > REJECT_JOIN_CPU_Threshold {
-		log.Warnf("peer join reach cpu %d", cpuUsage)
-		w.WriteHeader(http.StatusServiceUnavailable)
-		return
-	}
-	if !redis.IsAlive {
-		log.Warnf("peer join redis not alive")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		return
-	}
-
-	// rate limit
-	if limitEnabled {
-		if limiter.TakeAvailable(1) == 0 {
-			log.Warnf("reach rate limit %d", limiter.Capacity())
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
+func commonHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Upgrade") == "websocket" {
+		wsHandler(w, r)
+	} else {
+		util.SetOriginAllowAll(w)
+		if r.Method == "GET" {
+			pollingHandler(w, r)
+		} else if r.Method == "POST" {
+			postHandler(w, r)
 		}
-		//else {
-		//	log.Infof("rate limit remaining %d capacity %d", limiter.Available(), limiter.Capacity())
-		//}
 	}
+}
 
+func postHandler(w http.ResponseWriter, r *http.Request) {
+	if !commonCheck() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 	query := r.URL.Query()
 	id := query.Get("id")
-	//platform := query.Get("p")
 	domain := query.Get("d")
-	ver := query.Get("v")
+	isHello := query.Has("hello")
 	//log.Printf("id %s", id)
 	if id == "" || len(id) < 6 {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	if hub.HasClient(id) {
-		if domain != "" {
-			log.Infof("hub already has %s domain %s ver %s", id, domain, ver)
-		}
-		w.WriteHeader(http.StatusConflict)
+	// 校验
+	if securityEnabled && !checkToken(id, query.Get("token"), r.Header.Get("Origin")) {
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+	c, ok := hub.GetClient(id)
+	if ok {
+		if !c.IsPolling {
+			// websocket
+			if domain != "" {
+				log.Warnf("hub already has %s domain %s ver %s", id, domain)
+			}
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+	} else {
+		c = client.NewPollingPeerClient(id)
+		hub.DoRegister(c)
+		if isHello {
+			util.WriteVersion(w, versionNum)
+			return
+		}
+	}
+	b, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	hdrs, err := handler.NewPostHandler(b, c)
+	if err != nil {
+		//log.Error("NewPostHandler", err)
+		//log.Warn(string(bytes))
+	} else {
+		for _, hdr := range hdrs {
+			hdr.Handle()
+		}
+	}
+}
+
+func pollingHandler(w http.ResponseWriter, r *http.Request) {
+	if !commonCheck() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	query := r.URL.Query()
+	id := query.Get("id")
+	domain := query.Get("d")
+	//log.Printf("id %s", id)
+	if id == "" || len(id) < 6 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	// 校验
+	if securityEnabled && !checkToken(id, query.Get("token"), r.Header.Get("Origin")) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	c, ok := hub.GetClient(id)
+	if ok {
+		if !c.IsPolling {
+			// websocket or polling on
+			if domain != "" {
+				log.Warnf("hub already has %s domain %s ver %s", id, domain)
+			}
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+	} else {
+		log.Infof("pollingHandler NewPollingPeerClient %s", id)
+		c = client.NewPollingPeerClient(id)
+		hub.DoRegister(c)
+	}
+
+	msgLen := len(c.MsgQueue)
+	if msgLen > 0 {
+		buf := buffers.Get().(*bytes.Buffer)
+		buf.Reset()
+		defer buffers.Put(buf)
+		count := 0
+		buf.WriteByte('[')
+		for i := 0; i < msgLen; i++ {
+			msg, ok := <-c.MsgQueue
+			if !ok {
+				break
+			}
+			buf.Write(msg)
+			buf.WriteByte(',')
+			count++
+		}
+		buf.Truncate(buf.Len() - 1) // 去掉最后一个逗号
+		buf.WriteByte(']')
+		util.SetHeaderJson(w)
+		w.Write(buf.Bytes())
+	} else {
+		c.UpdateTs()
+		select {
+		case <-time.After(time.Duration(120) * time.Second):
+			log.Infof("polling reach timeout")
+		case msg, ok := <-c.MsgQueue:
+			if ok {
+				// Consume event.
+				var buf bytes.Buffer
+				buf.WriteByte('[')
+				buf.Write(msg)
+				buf.WriteByte(']')
+				util.SetHeaderJson(w)
+				w.Write(buf.Bytes())
+			}
+		case <-r.Context().Done():
+			// Client connection closed before any events occurred and before the timeout was exceeded.
+			// 节点离开
+			log.Infof("pollingHandler peer leave %s", id)
+			if c.IsPolling {
+				if ok := hub.DoUnregister(id); ok {
+					log.Infof("close polling peer %s", id)
+					c.Close()
+				}
+			}
+		}
+	}
+}
+
+func wsHandler(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	id := query.Get("id")
+	//platform := query.Get("p")
+	domain := query.Get("d")
+	//ver := query.Get("v")
+	//log.Printf("id %s", id)
 
 	// Upgrade connection
 	conn, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
+		log.Error("UpgradeHTTP", err)
 		return
 	}
 
-	c := client.NewPeerClient(id, conn)
-
+	if id == "" || len(id) < 6 {
+		util.WriteCustomStatusCode(conn, 4000, "id is not valid")
+		return
+	}
 	// 校验
-	if securityEnabled {
-		token := strings.Split(query.Get("token"), "-")
-		if len(token) < 2 {
-			log.Warnf("token not valid %s origin %s", query.Get("token"), r.Header.Get("Origin"))
-			closeInvalidConn(c)
+	if securityEnabled && !checkToken(id, query.Get("token"), r.Header.Get("Origin")) {
+		util.WriteCustomStatusCode(conn, 4000, "token is not valid")
+		return
+	}
+	c, ok := hub.GetClient(id)
+	if ok {
+		if !c.IsPolling {
+			if domain != "" {
+				log.Infof("hub already has %s domain %s ver %s", id, domain)
+			}
+			util.WriteCustomStatusCode(conn, 4000, "ws already exist")
 			return
 		}
-		sign := token[0]
-		tsStr := token[1]
-		if ts, err := strconv.ParseInt(tsStr, 10, 64); err != nil {
-			//log.Warnf("ts ParseInt", err)
-			closeInvalidConn(c)
-			return
-		} else {
-			now := time.Now().Unix()
-			if ts < now-maxTimeStampAge || ts > now+maxTimeStampAge {
-				log.Warnf("ts expired for %d origin %s", now-ts, r.Header.Get("Origin"))
-				closeInvalidConn(c)
-				return
+		log.Infof("%s switch from polling to ws", id)
+		c.IsPolling = false
+		c.Conn = conn
+		msgLen := len(c.MsgQueue)
+		for i := 0; i < msgLen; i++ {
+			msg, ok := <-c.MsgQueue
+			if !ok {
+				break
 			}
-			//ip := strings.Split(r.RemoteAddr, ":")[0]
-			//log.Infof("client ip %s", ip)
-
-			hm := hmac.New(md5.New, []byte(securityToken))
-			hm.Write([]byte(tsStr + id))
-			realSign := hex.EncodeToString(hm.Sum(nil))[:8]
-			if sign != realSign {
-				log.Warnf("client token %s not match %s origin %s", sign, realSign, r.Header.Get("Origin"))
-				closeInvalidConn(c)
-				return
-			}
+			c.SendDataWs(msg)
 		}
+		close(c.MsgQueue)
+		c.UpdateTs()
+	} else {
+		c = client.NewWebsocketPeerClient(id, conn)
+		hub.DoRegister(c)
 	}
 
-	hub.DoRegister(c)
+	if !commonCheck() {
+		util.WriteCustomStatusCode(conn, 5000, "check failed")
+		return
+	}
 
 	// 发送版本号
 	c.SendMsgVersion(versionNum)
@@ -380,7 +499,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Infof("peer leave")
 			if ok := hub.DoUnregister(id); ok {
 				//log.Infof("close peer %s", id)
-				closeInvalidConn(c)
+				c.Close()
 			}
 		}()
 		//err := conn.SetReadDeadline(time.Now().Add(h.heartbeat * 3))
@@ -432,11 +551,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 }
 
-func closeInvalidConn(cli *client.Client) {
-	cli.SendMsgClose("invalid client")
-	cli.Close()
-}
-
 func setupConfigFromViper() {
 	limitEnabled = viper.GetBool("ratelimit.enable")
 	limitRate = viper.GetInt64("ratelimit.max_rate")
@@ -459,25 +573,39 @@ func checkConns() {
 	for range ticker.C {
 		log.Infof("start check client alive...")
 		go func() {
-			count := 0
+			wsCountremoved := 0
+			httpCountremoved := 0
+			wsCount := 0
+			httpCount := 0
 			for i := 0; i < cmap.SHARD_COUNT; i++ {
 				now := time.Now().Unix()
 				for val := range hub.GetInstance().Clients.GetChanByShard(i) {
 					cli := val.Val
-					if cli.IsExpired(now, EXPIRE_LIMIT) {
+					if cli.IsExpired(now) {
 						// 节点过期
 						//log.Warnf("client %s is expired for %d, close it", cli.PeerId, now-cli.Timestamp)
 						if ok := hub.DoUnregister(cli.PeerId); ok {
 							cli.Close()
-							count++
+							if cli.IsPolling {
+								httpCountremoved++
+							} else {
+								wsCountremoved++
+							}
+						}
+					} else {
+						if cli.IsPolling {
+							httpCount++
+						} else {
+							wsCount++
 						}
 					}
 				}
 				time.Sleep(2 * time.Second)
 			}
-			if count > 0 {
-				log.Warnf("check cmap finished, closed %d clients", count)
+			if wsCountremoved > 0 || httpCountremoved > 0 {
+				log.Warnf("check cmap finished, closed clients: ws %d polling %d", wsCountremoved, httpCountremoved)
 			}
+			log.Warnf("current clients ws %d, polling %d", wsCount, httpCount)
 		}()
 	}
 }
@@ -493,10 +621,66 @@ func keepAlive() {
 
 	for range ticker.C {
 		if redis.IsAlive {
-			log.Infof("start update...")
+			//log.Infof("start update...")
 			if err := redis.UpdateClientCount(hub.GetClientCount()); err != nil {
 				log.Error("UpdateClientCount", err)
 			}
 		}
 	}
+}
+
+func checkToken(id, queryToken, origin string) bool {
+	token := strings.Split(queryToken, "-")
+	if len(token) < 2 {
+		log.Warnf("token not valid %s origin %s", queryToken, origin)
+		return false
+	}
+	sign := token[0]
+	tsStr := token[1]
+	if ts, err := strconv.ParseInt(tsStr, 10, 64); err != nil {
+		//log.Warnf("ts ParseInt", err)
+		return false
+	} else {
+		now := time.Now().Unix()
+		if ts < now-maxTimeStampAge || ts > now+maxTimeStampAge {
+			log.Warnf("ts expired for %d origin %s", now-ts, origin)
+			return false
+		}
+		//ip := strings.Split(r.RemoteAddr, ":")[0]
+		//log.Infof("client ip %s", ip)
+
+		hm := hmac.New(md5.New, []byte(securityToken))
+		hm.Write([]byte(tsStr + id))
+		realSign := hex.EncodeToString(hm.Sum(nil))[:8]
+		if sign != realSign {
+			log.Warnf("client token %s not match %s origin %s", sign, realSign, origin)
+			return false
+		}
+	}
+	return true
+}
+
+func commonCheck() bool {
+	// cpu usage
+	cpuUsage := atomic.LoadInt64(&handler.G_CPU)
+	if cpuUsage > REJECT_JOIN_CPU_Threshold {
+		log.Warnf("peer join reach cpu %d", cpuUsage)
+		return false
+	}
+	if !redis.IsAlive {
+		log.Warnf("peer join redis not alive")
+		return false
+	}
+
+	// rate limit
+	if limitEnabled {
+		if limiter.TakeAvailable(1) == 0 {
+			log.Warnf("reach rate limit %d", limiter.Capacity())
+			return false
+		}
+		//else {
+		//	log.Infof("rate limit remaining %d capacity %d", limiter.Available(), limiter.Capacity())
+		//}
+	}
+	return true
 }

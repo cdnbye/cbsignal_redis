@@ -22,9 +22,13 @@ func (s *RejectHandler) Handle() {
 	}
 	//log.Warnf("reject reason %s", s.Msg.Reason)
 	resp := nodes.SignalResp{
-		Action:     "reject",
-		FromPeerId: s.Cli.PeerId,
-		Reason:     s.Msg.Reason,
+		Action: "reject",
+		Reason: s.Msg.Reason,
+	}
+	if s.Cli.IsPolling {
+		resp.From = s.Cli.PeerId
+	} else {
+		resp.FromPeerId = s.Cli.PeerId
 	}
 	if target, ok := hub.GetClient(toPeerId); ok {
 		hub.SendJsonToClient(target, resp)

@@ -29,9 +29,13 @@ func (s *SignalHandler) Handle() {
 		return
 	}
 	signalResp := nodes.SignalResp{
-		Action:     "signal",
-		FromPeerId: cli.PeerId,
-		Data:       s.Msg.Data,
+		Action: "signal",
+		Data:   s.Msg.Data,
+	}
+	if s.Cli.IsPolling {
+		signalResp.From = cli.PeerId
+	} else {
+		signalResp.FromPeerId = cli.PeerId
 	}
 	if target, ok := hub.GetClient(toPeerId); ok {
 		//log.Infof("SendJsonToClient %s", toPeerId)

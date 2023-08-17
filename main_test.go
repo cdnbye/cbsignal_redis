@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"github.com/mitchellh/mapstructure"
 	"strconv"
 	"strings"
@@ -53,4 +55,46 @@ func TestMap(t *testing.T) {
 	}
 	mapstructure.Decode(m, &result)
 	t.Logf("%+v", result)
+}
+
+func TestJson(t *testing.T) {
+	type obj struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+
+	json1 := obj{
+		Name: "x",
+		Age:  20,
+	}
+	json2 := obj{
+		Name: "t",
+		Age:  33,
+	}
+	b1, _ := json.Marshal(json1)
+	b2, _ := json.Marshal(json2)
+	var buf bytes.Buffer
+	//enc := json.NewEncoder(&buf)
+
+	buf.WriteByte('[')
+	buf.Write(b1)
+	buf.WriteByte(',')
+	buf.Write(b2)
+	//enc.Encode(b1)
+	//buf.WriteByte(',')
+	//buf.UnreadByte()
+	//enc.Encode(b2)
+	buf.WriteByte(']')
+
+	result := buf.Bytes()
+	t.Log(string(result))
+
+	type objs []obj
+	var ret objs
+	err := json.Unmarshal(result, &ret)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(ret)
+	t.Log(ret[0].Name)
 }
