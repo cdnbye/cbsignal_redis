@@ -35,6 +35,7 @@ type Handler interface {
 type SignalMsg struct {
 	Action   string      `json:"action"`
 	ToPeerId string      `json:"to_peer_id"`
+	To       string      `json:"to"`
 	Data     interface{} `json:"data"`
 	Reason   string      `json:"reason"`
 }

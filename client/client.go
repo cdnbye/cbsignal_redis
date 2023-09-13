@@ -35,10 +35,9 @@ type Client struct {
 }
 
 type SignalCloseResp struct {
-	Action     string      `json:"action"`
-	FromPeerId string      `json:"from_peer_id,omitempty"`
-	Data       interface{} `json:"data,omitempty"`
-	Reason     string      `json:"reason,omitempty"`
+	Action     string `json:"action"`
+	FromPeerId string `json:"from_peer_id,omitempty"`
+	Reason     string `json:"reason,omitempty"`
 }
 
 type SignalVerResp struct {

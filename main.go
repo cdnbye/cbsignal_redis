@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	VERSION                   = "4.6.2"
+	VERSION                   = "4.6.3"
 	CHECK_CLIENT_INTERVAL     = 6 * 60
 	KEEP_LIVE_INTERVAL        = 7
 	REJECT_JOIN_CPU_Threshold = 720
@@ -100,7 +100,7 @@ func init() {
 	log.InitLogger(viper.GetString("log.writers"),
 		viper.GetString("log.logger_level"),
 		viper.GetBool("log.log_format_text"),
-		viper.GetString("log.logger_dir"),
+		viper.GetString("log.logger_dir")+"/signalhub.log",
 		viper.GetInt("log.log_rotate_size"),
 		viper.GetInt("log.log_backup_count"),
 		viper.GetInt("log.log_max_age"))
@@ -301,7 +301,6 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	query := r.URL.Query()
 	id := query.Get("id")
-	domain := query.Get("d")
 	isHello := query.Has("hello")
 	//log.Printf("id %s", id)
 	if id == "" || len(id) < 6 {
@@ -317,9 +316,6 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		if !c.IsPolling {
 			// websocket
-			if domain != "" {
-				log.Warnf("hub already has %s domain %s ver %s", id, domain)
-			}
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
@@ -355,7 +351,6 @@ func pollingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	query := r.URL.Query()
 	id := query.Get("id")
-	domain := query.Get("d")
 	//log.Printf("id %s", id)
 	if id == "" || len(id) < 6 {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -370,9 +365,6 @@ func pollingHandler(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		if !c.IsPolling {
 			// websocket or polling on
-			if domain != "" {
-				log.Warnf("hub already has %s domain %s ver %s", id, domain)
-			}
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
@@ -435,7 +427,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	id := query.Get("id")
 	//platform := query.Get("p")
-	domain := query.Get("d")
 	//ver := query.Get("v")
 	//log.Printf("id %s", id)
 
@@ -458,9 +449,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	c, ok := hub.GetClient(id)
 	if ok {
 		if !c.IsPolling {
-			if domain != "" {
-				log.Infof("hub already has %s domain %s ver %s", id, domain)
-			}
 			util.WriteCustomStatusCode(conn, 4000, "ws already exist")
 			return
 		}
@@ -519,6 +507,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					c.UpdateTs()
+					if err := redis.UpdateLocalPeerExpiration(c.PeerId); err != nil {
+						log.Error(err)
+					}
 					//log.Warnf("receive ping from %s platform %s", id, platform)
 					err := wsutil.HandleClientControlMessage(conn, m)
 					if err != nil {
@@ -541,8 +532,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				hdr, err := handler.NewHandler(data, c)
 				if err != nil {
 					// 心跳包
-					c.UpdateTs()
-					//log.Error("NewHandler", err)
+					//c.UpdateTs()   // TODO 验证
+					log.Error("NewHandler", err)
 				} else {
 					hdr.Handle()
 				}
@@ -573,8 +564,8 @@ func checkConns() {
 	for range ticker.C {
 		log.Infof("start check client alive...")
 		go func() {
-			wsCountremoved := 0
-			httpCountremoved := 0
+			wsCountRemoved := 0
+			httpCountRemoved := 0
 			wsCount := 0
 			httpCount := 0
 			for i := 0; i < cmap.SHARD_COUNT; i++ {
@@ -587,9 +578,9 @@ func checkConns() {
 						if ok := hub.DoUnregister(cli.PeerId); ok {
 							cli.Close()
 							if cli.IsPolling {
-								httpCountremoved++
+								httpCountRemoved++
 							} else {
-								wsCountremoved++
+								wsCountRemoved++
 							}
 						}
 					} else {
@@ -602,8 +593,8 @@ func checkConns() {
 				}
 				time.Sleep(2 * time.Second)
 			}
-			if wsCountremoved > 0 || httpCountremoved > 0 {
-				log.Warnf("check cmap finished, closed clients: ws %d polling %d", wsCountremoved, httpCountremoved)
+			if wsCountRemoved > 0 || httpCountRemoved > 0 {
+				log.Warnf("check cmap finished, closed clients: ws %d polling %d", wsCountRemoved, httpCountRemoved)
 			}
 			log.Warnf("current clients ws %d, polling %d", wsCount, httpCount)
 		}()

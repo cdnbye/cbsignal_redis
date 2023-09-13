@@ -78,6 +78,7 @@ func (s *Node) Addr() string {
 }
 
 func (s *Node) Destroy() {
+	s.IsDead = true
 	s.aggregator.SafeStop()
 }
 
@@ -131,7 +132,7 @@ func (s *Node) sendBatchReq(items []*message.SignalReq) error {
 func (s *Node) StartHeartbeat() {
 	go func() {
 		for {
-			if s.pingRetrys > PING_MAX_RETRYS {
+			if s.pingRetrys > PING_MAX_RETRYS || s.IsDead {
 				s.IsDead = true
 				break
 			}

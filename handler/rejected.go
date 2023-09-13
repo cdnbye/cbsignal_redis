@@ -16,6 +16,9 @@ type RejectHandler struct {
 func (s *RejectHandler) Handle() {
 	//判断节点是否还在线
 	toPeerId := s.Msg.ToPeerId
+	if toPeerId == "" {
+		toPeerId = s.Msg.To
+	}
 	key := keyForFilter(s.Cli.PeerId, toPeerId)
 	if _, ok := filter.Get(key); ok {
 		return
@@ -25,16 +28,17 @@ func (s *RejectHandler) Handle() {
 		Action: "reject",
 		Reason: s.Msg.Reason,
 	}
-	if s.Cli.IsPolling {
-		resp.From = s.Cli.PeerId
-	} else {
-		resp.FromPeerId = s.Cli.PeerId
-	}
 	if target, ok := hub.GetClient(toPeerId); ok {
+		if target.IsPolling {
+			resp.From = s.Cli.PeerId
+		} else {
+			resp.FromPeerId = s.Cli.PeerId
+		}
 		hub.SendJsonToClient(target, resp)
 		filter.Put(key, nil)
 		return
 	}
+	resp.FromPeerId = s.Cli.PeerId
 	if addr, err := redis.GetRemotePeerAddr(toPeerId); err == nil {
 		// 如果是本节点
 		if addr == nodes.GetSelfAddr() {

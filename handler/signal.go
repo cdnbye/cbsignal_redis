@@ -24,6 +24,9 @@ func (s *SignalHandler) Handle() {
 
 	cli := s.Cli
 	toPeerId := s.Msg.ToPeerId
+	if toPeerId == "" {
+		toPeerId = s.Msg.To
+	}
 	key := keyForFilter(cli.PeerId, toPeerId)
 	if _, ok := filter.Get(key); ok {
 		return
@@ -32,12 +35,12 @@ func (s *SignalHandler) Handle() {
 		Action: "signal",
 		Data:   s.Msg.Data,
 	}
-	if s.Cli.IsPolling {
-		signalResp.From = cli.PeerId
-	} else {
-		signalResp.FromPeerId = cli.PeerId
-	}
 	if target, ok := hub.GetClient(toPeerId); ok {
+		if target.IsPolling {
+			signalResp.From = s.Cli.PeerId
+		} else {
+			signalResp.FromPeerId = s.Cli.PeerId
+		}
 		//log.Infof("SendJsonToClient %s", toPeerId)
 		if err, fatal := hub.SendJsonToClient(target, signalResp); err != nil {
 			log.Infof("%s send signal to peer %s error %s", cli.PeerId, target.PeerId, err)
@@ -47,6 +50,7 @@ func (s *SignalHandler) Handle() {
 		}
 		return
 	}
+	signalResp.FromPeerId = cli.PeerId
 	if addr, err := redis.GetRemotePeerAddr(toPeerId); err == nil {
 		// 如果是本节点
 		if addr == nodes.GetSelfAddr() {
@@ -58,8 +62,6 @@ func (s *SignalHandler) Handle() {
 			err = node.SendMsgSignal(&signalResp, toPeerId)
 			if err != nil {
 				log.Warnf("SendMsgSignal to remote failed " + err.Error())
-				s.handlePeerNotFound(key, toPeerId)
-				return
 			}
 		} else {
 			log.Warnf("node %s not found", addr)
@@ -72,6 +74,6 @@ func (s *SignalHandler) Handle() {
 		}
 	}
 
-	log.Infof("Peer %s not found", s.Msg.ToPeerId)
+	log.Infof("Peer %s not found", toPeerId)
 	s.handlePeerNotFound(key, toPeerId)
 }
